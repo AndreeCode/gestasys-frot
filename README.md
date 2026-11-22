@@ -1,3 +1,7 @@
+## Seguridad (OWASP ASVS 5.0 nivel 2)
+
+La matriz del sistema completo está en `../gestasys-back/ASVS.md`. Del lado del front: CSP con nonce (`proxy.ts`, `lib/csp.ts`), cookies `__Host-` (`lib/cookie-names.ts`), `Clear-Site-Data` al salir (`app/signed-out`, `app/session-expired`), búsquedas por `POST` (sin DNI en la URL), reautenticación con contraseña para configurar el MFA y cerrar sesiones (`components/dashboard/account-security.tsx`) y SBOM CycloneDX en CI (`.github/workflows/dependency-audit.yml`).
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

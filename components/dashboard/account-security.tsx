@@ -15,6 +15,7 @@ import {
   mfaSetupAction,
   mfaStatusAction,
   mySessionsAction,
+  revokeMyOtherSessionsAction,
   revokeMySessionAction,
   type MfaSetup,
 } from "@/lib/actions/auth";
@@ -36,8 +37,10 @@ export function MfaPanel({ onChanged }: { onChanged?: () => void }) {
   const [setup, setSetup] = useState<MfaSetup | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
 
-  async function start() {
-    const result = await run(mfaSetupAction(), "Clave generada: agrégala en tu app");
+  async function start(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const password = String(new FormData(event.currentTarget).get("password") ?? "");
+    const result = await run(mfaSetupAction(password), "Clave generada: agrégala en tu app");
     if (result) setSetup(result.data);
   }
 
@@ -111,15 +114,21 @@ export function MfaPanel({ onChanged }: { onChanged?: () => void }) {
 
   if (!setup) {
     return (
-      <div>
+      <form onSubmit={start}>
         <p className={forms.hint} style={{ margin: "0 0 14px", fontSize: 12 }}>
           Además de la contraseña, al ingresar se pedirá un código de 6 dígitos de una app autenticadora en tu celular.
           {status.data.required && " Tu rol lo exige."}
         </p>
-        <button className={buttons.primary} onClick={start} disabled={pending}>
+        <div className={forms.grid}>
+          <label>
+            Confirma tu contraseña
+            <input name="password" type="password" required autoComplete="current-password" />
+          </label>
+        </div>
+        <button className={buttons.primary} disabled={pending}>
           <KeyRound size={16} /> Configurar verificación en dos pasos
         </button>
-      </div>
+      </form>
     );
   }
 
@@ -150,21 +159,47 @@ export function MfaPanel({ onChanged }: { onChanged?: () => void }) {
   );
 }
 
-/** Sesiones abiertas de la propia cuenta (ASVS V7.4): cerrar las que no reconozcas. */
+/**
+ * Sesiones abiertas de la propia cuenta (ASVS V7.4 / V7.5.2): cerrar una o todas las demás,
+ * confirmando la contraseña, así quien encuentre la sesión abierta no echa al dueño.
+ */
 export function SessionsPanel() {
   const sessions = useBackendQuery("my-sessions", mySessionsAction);
   const { run, pending } = useBackendAction();
+  const [password, setPassword] = useState("");
 
-  async function close(id: string) {
-    if (await run(revokeMySessionAction(id))) sessions.reload();
+  async function close(id: string | null) {
+    const action = id ? revokeMySessionAction(id, password) : revokeMyOtherSessionsAction(password);
+    if (await run(action)) {
+      setPassword("");
+      sessions.reload();
+    }
   }
 
   if (sessions.error) return <ErrorState error={sessions.error} onRetry={sessions.reload} />;
   if (!sessions.data) return <LoadingState />;
   if (!sessions.data.length) return <EmptyState text="No hay sesiones activas." />;
 
+  const others = sessions.data.some((s) => !s.current);
+
   return (
     <div style={{ display: "grid", gap: 10 }}>
+      {others && (
+        <div style={{ display: "flex", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
+          <label className={forms.hint} style={{ display: "grid", gap: 4, flex: "1 1 220px" }}>
+            Contraseña para cerrar sesiones
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <button className={buttons.outline} disabled={pending || !password} onClick={() => close(null)}>
+            <LogOut size={13} /> Cerrar todas las demás
+          </button>
+        </div>
+      )}
       {sessions.data.map((s) => (
         <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #e6eef0", borderRadius: 8, padding: "10px 12px" }}>
           <MonitorSmartphone size={18} />
@@ -175,7 +210,7 @@ export function SessionsPanel() {
             </div>
           </div>
           {!s.current && (
-            <button className={buttons.ghost} disabled={pending} onClick={() => close(s.id)}>
+            <button className={buttons.ghost} disabled={pending || !password} onClick={() => close(s.id)}>
               <LogOut size={13} /> Cerrar
             </button>
           )}
