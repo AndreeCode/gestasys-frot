@@ -90,6 +90,23 @@ export function Overview() {
                   : "Todavía no hay backups completados"}
                 {system?.last_backup_ok === false && " · el último intento falló"}
               </div>
+              {system?.failed_logins_24h !== undefined && (
+                <div className={styles.systemStatus}>
+                  <b className={(system.locked_accounts ?? 0) > 0 ? styles.bad : system.failed_logins_24h > 20 ? styles.warn : ""} />
+                  {formatNumber(system.failed_logins_24h)} logins fallidos en 24 h
+                  {(system.locked_accounts ?? 0) > 0 && ` · ${formatNumber(system.locked_accounts ?? 0)} cuentas bloqueadas ahora`}
+                </div>
+              )}
+              {system && "audit_chain_ok" in system && (
+                <div className={styles.systemStatus}>
+                  <b className={system.audit_chain_ok === false ? styles.bad : system.audit_chain_ok ? "" : styles.warn} />
+                  {system.audit_chain_ok === false
+                    ? "La auditoría fue alterada: revisa el log del servidor"
+                    : system.audit_chain_ok
+                      ? `Auditoría íntegra (${formatNumber(system.audit_chain_records ?? 0)} registros, verificada ${formatDateTime(system.audit_chain_checked_at ?? null)})`
+                      : "Auditoría aún sin verificar"}
+                </div>
+              )}
               <div className={styles.systemStatus}>
                 <b className={data.stats.high_risk > 0 ? styles.warn : ""} />
                 {formatNumber(data.stats.high_risk)} gestantes de alto riesgo en seguimiento

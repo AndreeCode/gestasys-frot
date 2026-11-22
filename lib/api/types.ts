@@ -240,5 +240,12 @@ export type DashboardData = {
     last_backup_at: string | null;
     last_backup_ok: boolean | null;
     server_time: string;
+    /** Solo para usuarios sin establecimiento asignado (vista de toda la red). */
+    failed_logins_24h?: number;
+    locked_accounts?: number;
+    /** Última verificación de la cadena de hashes de audit_log (null = aún no se verificó). */
+    audit_chain_ok?: boolean | null;
+    audit_chain_checked_at?: string | null;
+    audit_chain_records?: number | null;
   };
 };
