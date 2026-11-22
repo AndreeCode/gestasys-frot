@@ -1,0 +1,19 @@
+.shell { min-height: 100vh; display: flex; background: var(--surface); color: var(--ink); }
+.main { flex: 1; min-width: 0; }
+.content { max-width: 1280px; margin: 0 auto; padding: 39px 42px 52px; }
+
+.topProfile { display: flex; align-items: center; gap: 9px; color: #60717b; font-size: 11px; }
+.topAvatar { display: grid; place-items: center; border-radius: 50%; color: #fff; background: #e6a35d; font-size: 11px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .topbar { padding: 0 24px; }
+  .content { padding: 30px 24px 40px; }
+}
+
+@media (max-width: 700px) {
+  .topProfile span { display: none; }
+}
+
+@media (max-width: 640px) {
+  .content { padding: 27px 16px 32px; }
+}

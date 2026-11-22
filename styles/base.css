@@ -1,0 +1,13 @@
+/* Tokens de marca y reset mínimo. Los tokens de tema (shadcn) viven en app/globals.css. */
+
+:root {
+  --navy: #173b56;
+  --teal: #168b86;
+  --ink: #243746;
+  --muted-text: #71808b;
+  --surface: #f6f9fb;
+}
+
+* { box-sizing: border-box; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }

@@ -1,0 +1,37 @@
+.panel { display: flex; align-items: center; gap: 18px; padding: 26px; margin-bottom: 18px; }
+.panel h2 { color: var(--navy); font-size: 16px; margin: 0 0 7px; }
+.panel p { color: var(--muted-text); font-size: 12px; margin: 0 0 10px; }
+.icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 12px; background: #e8f6f4; color: var(--teal); }
+.badge { color: #3b9578; font-size: 10px; }
+.badge b { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #42ae87; margin-right: 8px; }
+
+.history { padding: 22px 24px; }
+.history h2 { color: var(--navy); font-size: 15px; margin: 0 0 5px; }
+.row { display: flex; align-items: center; gap: 20px; padding: 15px 0; border-top: 1px solid #edf1f3; color: #647781; font-size: 11px; }
+.row strong { flex: 1; color: #3d5864; }
+.row em { color: #3b9578; font-style: normal; }
+
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; }
+.table th { padding: 11px 14px; text-align: left; color: #71828a; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid #e3ecee; }
+.table td { padding: 14px; color: #60717b; border-bottom: 1px solid #edf2f3; }
+.table td strong { color: var(--navy); }
+.table em { color: #2d8a6d; font-style: normal; font-weight: 700; }
+.priority { display: inline-flex; border-radius: 999px; padding: 4px 9px; color: #9a681b; background: #fff4da; font-size: 11px; font-weight: 700; }
+
+@media (max-width: 700px) {
+  .panel { align-items: flex-start; flex-direction: column; }
+  .row { align-items: flex-start; flex-direction: column; gap: 5px; }
+}
+
+.badge.warn { color: #c79040; }
+.badge.warn b { background: #d89d47; }
+.badge.bad { color: #c45b5b; }
+.badge.bad b { background: #d06666; }
+.meta { display: flex; flex-wrap: wrap; gap: 14px; color: #8d9ba2; font-size: 11px; margin-top: 8px; }
+.table em.running { color: #c79040; }
+.table em.failed { color: #c45b5b; }
+.table small { display: block; color: #a0abb0; font-size: 10px; margin-top: 3px; max-width: 280px; white-space: normal; }
+.priority.normal { color: #5284ac; background: #e9f2fa; }
+.priority.low { color: #74848c; background: #f1f3f4; }
+.tableActions { display: flex; gap: 4px; }

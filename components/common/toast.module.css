@@ -1,0 +1,5 @@
+.stack { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: grid; gap: 10px; width: min(360px, calc(100vw - 32px)); }
+.toast { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 9px; border: 1px solid #cfe9e5; background: #f2fbfa; color: #2f6f6b; font-size: 12px; box-shadow: 0 10px 30px #173b561a; }
+.toast.danger { border-color: #efcaca; background: #fff7f7; color: #a95252; }
+.toast p { flex: 1; margin: 0; line-height: 1.4; }
+.toast button { border: 0; background: none; color: inherit; padding: 0; opacity: .7; }

@@ -1,0 +1,13 @@
+.backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: #17303f66; }
+.dialog { width: min(100%, 720px); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 12px; border: 1px solid #e4ecef; box-shadow: 0 24px 70px #173b5633; }
+.dialog.wide { width: min(100%, 980px); }
+.header { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px 14px; background: #fff; border-bottom: 1px solid #edf1f3; }
+.header h2 { color: var(--navy); font-size: 16px; margin: 0 0 4px; }
+.header p { color: #9aa7ae; font-size: 11px; margin: 0; }
+.close { border: 0; background: none; color: #8d9ba2; padding: 4px; }
+.body { padding: 20px 24px 24px; }
+.footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px 20px; }
+
+@media (max-width: 640px) {
+  .header, .body, .footer { padding-left: 16px; padding-right: 16px; }
+}
