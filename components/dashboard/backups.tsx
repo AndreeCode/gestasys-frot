@@ -113,6 +113,11 @@ export function Backups() {
                     <td>
                       <strong>{b.kind === "automatic" ? "Backup automático" : "Backup manual"}</strong>
                       {b.created_by_name && <small>por {b.created_by_name}</small>}
+                      {b.sha256 && (
+                        <small title={`SHA-256 ${b.sha256} (compáralo con: sha256sum ${b.file_name ?? "archivo"})`}>
+                          SHA-256 {b.sha256.slice(0, 12)}…
+                        </small>
+                      )}
                     </td>
                     <td>{formatDateTime(b.started_at)}</td>
                     <td>{b.tables.length ? `${b.tables.length} tablas` : "—"}</td>

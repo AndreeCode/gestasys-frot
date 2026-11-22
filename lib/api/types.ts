@@ -185,6 +185,8 @@ export type Backup = {
   status: "running" | "completed" | "failed";
   file_name: string | null;
   size_bytes: number | null;
+  /** SHA-256 del archivo en disco; el back lo verifica antes de cada descarga. */
+  sha256: string | null;
   tables: string[];
   priority: "high" | "normal" | "low";
   error: string | null;
