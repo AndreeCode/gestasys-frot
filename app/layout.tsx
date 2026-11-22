@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "@/styles/base.css";
@@ -37,11 +38,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // El nonce de la CSP exige renderizar cada petición (lib/csp.ts).
+  await connection();
   return (
     <html lang="es" className={cn("font-sans", geist.variable)}>
       <body className="antialiased">

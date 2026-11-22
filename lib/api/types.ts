@@ -25,6 +25,7 @@ export type User = {
   blocked: boolean;
   blocked_reason: string | null;
   must_change_password: boolean;
+  mfa_enabled: boolean;
   locked_until: string | null;
   last_login_at: string | null;
   created_at: string;
@@ -34,6 +35,11 @@ export type User = {
 export type Profile = User & {
   permissions: string[];
   session: { session_id: string; device_id: string; expires_at?: string };
+  /** Tu rol exige verificación en dos pasos (MFA_REQUIRED + MFA_ROLES en el back). */
+  mfa_required: boolean;
+  /** Exigida y todavía sin activar: el back solo deja usar /auth/me, /auth/password y /auth/mfa/*. */
+  mfa_setup_required: boolean;
+  temp_password_expires_at: string | null;
 };
 
 export type Role = {

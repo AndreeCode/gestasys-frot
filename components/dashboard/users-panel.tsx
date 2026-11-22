@@ -9,7 +9,7 @@ import { Modal } from "@/components/common/modal";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel, PanelHeading } from "@/components/common/panel";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
-import { deleteUser, loadUsers, updateUser } from "@/lib/actions/users";
+import { deleteUser, loadUsers, resetUserMfa, updateUser } from "@/lib/actions/users";
 import type { User } from "@/lib/api/types";
 import { formatDateTime, roleTitle } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,11 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
       setDialog(null);
       reload();
     }
+  }
+
+  async function resetMfa(user: User) {
+    if (!window.confirm(`¿Restablecer la verificación en dos pasos de ${user.full_name}? Se cerrarán sus sesiones y deberá configurarla de nuevo.`)) return;
+    if (await run(resetUserMfa(user.id))) reload();
   }
 
   async function deactivate(user: User) {
@@ -132,6 +137,7 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                     <span className={styles.badge}>Activa</span>
                   )}
                   {user.must_change_password && <span className={cn(styles.badge, styles.temp)}>Contraseña temporal</span>}
+                  {user.mfa_enabled && <span className={styles.badge}>2 pasos</span>}
                   {user.blocked && user.blocked_reason && <small>{user.blocked_reason}</small>}
                 </div>
                 {can("user.put") && !self ? (
@@ -151,6 +157,11 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                     <button className={buttons.ghost} title="Resetear contraseña" onClick={() => setDialog({ kind: "password", user })}>
                       <KeyRound size={13} />
                     </button>
+                    {user.mfa_enabled && (
+                      <button className={buttons.ghost} title="Restablecer verificación en dos pasos" disabled={pending} onClick={() => resetMfa(user)}>
+                        2FA
+                      </button>
+                    )}
                     {user.blocked ? (
                       <button className={buttons.ghost} title="Desbloquear" disabled={pending} onClick={() => save(user, { blocked: false })}>
                         <LockOpen size={13} />

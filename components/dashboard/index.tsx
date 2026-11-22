@@ -10,6 +10,7 @@ import { useBackendQuery } from "@/hooks/use-backend";
 import { logoutAction, meAction } from "@/lib/actions/auth";
 import { SECTION_PERMISSION, type Section } from "@/lib/types";
 import { Backups } from "./backups";
+import { ForceMfaSetup } from "./account-security";
 import { ForcePasswordChange, Settings } from "./settings";
 import { ImportExport } from "./import-export";
 import { Overview } from "./overview";
@@ -56,7 +57,7 @@ function DashboardContent() {
 
   async function logout() {
     await logoutAction();
-    window.location.replace("/login");
+    window.location.replace("/signed-out");
   }
 
   if (!profile) {
@@ -69,6 +70,10 @@ function DashboardContent() {
 
   if (profile.must_change_password) {
     return <ForcePasswordChange profile={profile} onDone={reload} onLogout={logout} />;
+  }
+
+  if (profile.mfa_setup_required) {
+    return <ForceMfaSetup profile={profile} onDone={reload} onLogout={logout} />;
   }
 
   const section: Section =

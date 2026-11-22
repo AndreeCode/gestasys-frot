@@ -126,7 +126,7 @@ export function UserRegistration() {
                 minLength={8}
                 maxLength={128}
                 autoComplete="new-password"
-                placeholder="Mínimo 8 caracteres, letras y números"
+                placeholder="Mínimo 8 caracteres; mejor una frase larga"
               />
             </label>
           </div>

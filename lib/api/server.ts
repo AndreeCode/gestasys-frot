@@ -4,6 +4,7 @@ import { BACKEND_URL } from "@/lib/backend";
 import { forwardedHeaders } from "@/lib/api/forwarded";
 import type { ApiResult } from "@/lib/api/types";
 import { toQuery } from "@/lib/query";
+import { SESSION_COOKIE } from "@/lib/cookie-names";
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 
@@ -17,7 +18,7 @@ const UPLOAD_TIMEOUT_MS = 120_000;
 
 /** Encabezados para hablar con el backend en nombre del usuario: cookie de sesión, navegador e IP. */
 export async function sessionHeaders(): Promise<Record<string, string> | null> {
-  const token = (await cookies()).get("access_token")?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return { Cookie: `access_token=${token}`, ...(await forwardedHeaders()) };
 }
@@ -46,7 +47,7 @@ export async function backend<T>(
 
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401) (await cookies()).delete("access_token");
+    if (res.status === 401) (await cookies()).delete(SESSION_COOKIE);
     return { ok: false, status: res.status, error: payload?.msg ?? `Error ${res.status} del servidor` };
   }
   return { ok: true, data: payload?.data as T, msg: payload?.msg ?? "", meta: payload?.meta };

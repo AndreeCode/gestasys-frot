@@ -13,3 +13,14 @@ export async function GET(request: NextRequest) {
   const query = params.toString();
   return forwardDownload(`/pregnancies/export${query ? `?${query}` : ""}`);
 }
+
+/** Export con filtros (incluido el DNI buscado) enviado por un formulario POST: nada queda en la URL. */
+export async function POST(request: NextRequest) {
+  const form = await request.formData().catch(() => null);
+  const body: Record<string, string> = {};
+  for (const key of ALLOWED) {
+    const value = form?.get(key);
+    if (typeof value === "string" && value) body[key] = value;
+  }
+  return forwardDownload("/pregnancies/export", body);
+}

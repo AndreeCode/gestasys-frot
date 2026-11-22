@@ -13,6 +13,7 @@ import { changePasswordAction } from "@/lib/actions/auth";
 import type { Profile } from "@/lib/api/types";
 import { formatDateTime, roleTitle } from "@/lib/format";
 import login from "@/components/login/login.module.css";
+import { MfaPanel, SessionsPanel } from "./account-security";
 import { useSession } from "./session";
 import forms from "./forms.module.css";
 import detail from "./record-detail.module.css";
@@ -55,7 +56,7 @@ function PasswordForm({ onDone, compact }: { onDone: () => void; compact?: boole
       </div>
       {mismatch && <div className={compact ? login.error : forms.formError}>Las contraseñas nuevas no coinciden</div>}
       <p className={forms.hint} style={{ margin: "8px 0 14px" }}>
-        Mínimo 8 caracteres, con letras y números. Al cambiarla se cierran tus otras sesiones.
+        Mínimo 8 caracteres y que no sea una contraseña común; una frase larga es más segura y fácil de recordar. Al cambiarla se cierran tus otras sesiones.
       </p>
       {compact ? (
         <button className={login.submit} disabled={pending}>
@@ -94,6 +95,17 @@ export function Settings() {
         <h2 style={{ color: "var(--navy)", fontSize: 15, margin: "22px 0 16px" }}>Cambiar contraseña</h2>
         <PasswordForm onDone={reloadProfile} />
       </Panel>
+      <Panel className={forms.card}>
+        <h2 style={{ color: "var(--navy)", fontSize: 15, margin: "22px 0 16px" }}>Verificación en dos pasos</h2>
+        <MfaPanel onChanged={reloadProfile} />
+      </Panel>
+      <Panel className={forms.card}>
+        <h2 style={{ color: "var(--navy)", fontSize: 15, margin: "22px 0 6px" }}>Mis sesiones</h2>
+        <p className={forms.hint} style={{ margin: "0 0 14px" }}>
+          Si ves una sesión que no reconoces, ciérrala y cambia tu contraseña. Las sesiones se cierran solas tras 30 minutos sin actividad.
+        </p>
+        <SessionsPanel />
+      </Panel>
     </>
   );
 }
@@ -119,6 +131,7 @@ export function ForcePasswordChange({
           <h1>Crea tu contraseña</h1>
           <p className={login.copy}>
             Hola {profile.full_name}, tu cuenta tiene una contraseña temporal. Cámbiala para continuar.
+            {profile.temp_password_expires_at && ` Vence el ${formatDateTime(profile.temp_password_expires_at)}.`}
           </p>
           <PasswordForm onDone={onDone} compact />
           <button className={buttons.ghost} style={{ marginTop: 16 }} onClick={onLogout}>

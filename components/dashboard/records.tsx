@@ -12,7 +12,6 @@ import { loadRecords } from "@/lib/actions/pregnancies";
 import type { PregnancyFilters, PregnancyStatus } from "@/lib/api/types";
 import { RISK_LABELS, STATUS_LABELS, formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { toQuery } from "@/lib/query";
 import { RecordDetail } from "./record-detail";
 import { RecordForm } from "./record-form";
 import { RecordStats } from "./record-stats";
@@ -47,12 +46,12 @@ export function Records() {
   const facilities = (data?.facilities ?? []).filter((f) => !scope || f.id === scope);
   const page = data?.page;
 
-  const exportHref = `/files/export${toQuery({
+  const exportFields = {
     q: filters.q,
     health_facility_id: filters.health_facility_id,
     status: filters.status,
     risk_level: filters.risk_level,
-  })}`;
+  };
 
   return (
     <>
@@ -79,9 +78,14 @@ export function Records() {
           description={page ? `${page.total} registros · actualizado ${formatDateTime(new Date().toISOString())}` : "Cargando..."}
           action={
             can("pregnancy.export") && (
-              <a className={buttons.outline} href={exportHref} download>
-                <Download size={16} /> Exportar
-              </a>
+              <form method="post" action="/files/export">
+                {Object.entries(exportFields).map(([name, value]) =>
+                  value ? <input key={name} type="hidden" name={name} value={value} /> : null,
+                )}
+                <button className={buttons.outline} type="submit">
+                  <Download size={16} /> Exportar
+                </button>
+              </form>
             )
           }
         />

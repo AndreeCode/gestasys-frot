@@ -13,8 +13,17 @@ import type {
   Stats,
 } from "@/lib/api/types";
 
+/** Solo los filtros con valor: el back valida estado y riesgo contra una lista cerrada. */
+function searchBody(filters: PregnancyFilters) {
+  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== undefined && value !== ""));
+}
+
+/**
+ * La búsqueda va por POST (ASVS V14): el DNI o el nombre viajan en el cuerpo y no quedan en la URL,
+ * es decir, ni en el log de accesos del back ni en el historial o los proxies.
+ */
 async function pregnancyPage(filters: PregnancyFilters): Promise<ApiResult<Page<Pregnancy>>> {
-  const result = await backend<Pregnancy[]>("/pregnancies", { query: filters });
+  const result = await backend<Pregnancy[]>("/pregnancies/search", { method: "POST", body: searchBody(filters) });
   if (!result.ok) return result;
   return {
     ok: true,

@@ -48,3 +48,8 @@ export async function updateUser(userId: string, input: UserUpdate) {
 export async function deleteUser(userId: string) {
   return backend<null>(`/users/${id(userId)}`, { method: "DELETE" });
 }
+
+/** Para un usuario que perdió su celular: debe volver a configurar la verificación al entrar. */
+export async function resetUserMfa(userId: string) {
+  return backend<null>(`/users/${id(userId)}/mfa`, { method: "DELETE" });
+}
