@@ -1,7 +1,8 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
+import { forwardedHeaders } from "@/lib/api/forwarded";
 import { backend } from "@/lib/api/server";
 import type { Profile } from "@/lib/api/types";
 import { BACKEND_URL, parseSetCookie } from "@/lib/backend";
@@ -15,14 +16,13 @@ type LoginResult = { ok: true; profile: Profile } | { ok: false; error: string }
 /** Devuelve el error en lugar de lanzarlo: en producción Next oculta los mensajes de los errores lanzados. */
 export async function loginAction(username: string, password: string): Promise<LoginResult> {
   const cookieStore = await cookies();
-  const userAgent = (await headers()).get("user-agent") ?? "";
   const deviceToken = cookieStore.get("device_token")?.value;
 
   const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": userAgent,
+      ...(await forwardedHeaders()),
       ...(deviceToken ? { Cookie: `device_token=${deviceToken}` } : {}),
     },
     body: JSON.stringify({ username, password }),
@@ -58,10 +58,9 @@ export async function loginAction(username: string, password: string): Promise<L
 export async function logoutAction(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
-  const userAgent = (await headers()).get("user-agent") ?? "";
   await fetch(`${BACKEND_URL}/api/auth/logout`, {
     method: "POST",
-    headers: { "User-Agent": userAgent, ...(token ? { Cookie: `access_token=${token}` } : {}) },
+    headers: { ...(await forwardedHeaders()), ...(token ? { Cookie: `access_token=${token}` } : {}) },
     cache: "no-store",
   }).catch(() => null);
   cookieStore.delete("access_token");

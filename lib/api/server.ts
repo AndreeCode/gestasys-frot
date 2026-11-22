@@ -1,17 +1,17 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 import { BACKEND_URL } from "@/lib/backend";
+import { forwardedHeaders } from "@/lib/api/forwarded";
 import type { ApiResult } from "@/lib/api/types";
 import { toQuery } from "@/lib/query";
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 
-/** Encabezados para hablar con el backend en nombre del usuario: cookie de sesión y navegador. */
+/** Encabezados para hablar con el backend en nombre del usuario: cookie de sesión, navegador e IP. */
 export async function sessionHeaders(): Promise<Record<string, string> | null> {
   const token = (await cookies()).get("access_token")?.value;
   if (!token) return null;
-  const userAgent = (await headers()).get("user-agent") ?? "";
-  return { Cookie: `access_token=${token}`, "User-Agent": userAgent };
+  return { Cookie: `access_token=${token}`, ...(await forwardedHeaders()) };
 }
 
 /**
