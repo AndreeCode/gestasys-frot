@@ -27,6 +27,7 @@ export async function loginAction(username: string, password: string): Promise<L
     },
     body: JSON.stringify({ username, password }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   if (!res) return { ok: false, error: "No se pudo conectar con el servidor" };
 
@@ -62,6 +63,7 @@ export async function logoutAction(): Promise<void> {
     method: "POST",
     headers: { ...(await forwardedHeaders()), ...(token ? { Cookie: `access_token=${token}` } : {}) },
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   cookieStore.delete("access_token");
 }
