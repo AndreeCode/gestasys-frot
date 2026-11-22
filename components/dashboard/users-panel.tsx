@@ -17,10 +17,11 @@ import { useSession } from "./session";
 import forms from "./forms.module.css";
 import styles from "./permissions.module.css";
 
-type Dialog = { kind: "block" | "password" | "role"; user: User } | null;
+type Dialog = { kind: "block" | "password" | "role" | "facility"; user: User } | null;
 
 export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
   const { profile, can } = useSession();
+  const canMoveFacility = !profile.health_facility_id;
   const { data, error, loading, reload } = useBackendQuery("users", loadUsers);
   const { run, pending } = useBackendAction();
   const [query, setQuery] = useState("");
@@ -61,6 +62,8 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
         { password: String(form.get("password") ?? "") },
         "Contraseña reseteada: el usuario deberá cambiarla al ingresar",
       );
+    } else if (dialog.kind === "facility") {
+      await save(dialog.user, { health_facility_id: String(form.get("health_facility_id") ?? "") || null });
     } else {
       await save(dialog.user, { role_id: String(form.get("role_id") ?? "") });
     }
@@ -115,6 +118,7 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                 </div>
                 <div>
                   <span>{roleTitle(user.role)}</span>
+                  <small>{user.health_facility_name ?? "Todos los establecimientos"}</small>
                   <small>Último ingreso: {formatDateTime(user.last_login_at)}</small>
                 </div>
                 <div>
@@ -135,6 +139,15 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                     <button className={buttons.ghost} title="Cambiar rol" onClick={() => setDialog({ kind: "role", user })}>
                       Rol
                     </button>
+                    {canMoveFacility && (
+                      <button
+                        className={buttons.ghost}
+                        title="Cambiar establecimiento"
+                        onClick={() => setDialog({ kind: "facility", user })}
+                      >
+                        EESS
+                      </button>
+                    )}
                     <button className={buttons.ghost} title="Resetear contraseña" onClick={() => setDialog({ kind: "password", user })}>
                       <KeyRound size={13} />
                     </button>
@@ -175,14 +188,18 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
               ? `Bloquear a ${dialog.user.full_name}`
               : dialog.kind === "password"
                 ? `Resetear contraseña de ${dialog.user.full_name}`
-                : `Cambiar rol de ${dialog.user.full_name}`
+                : dialog.kind === "facility"
+                  ? `Establecimiento de ${dialog.user.full_name}`
+                  : `Cambiar rol de ${dialog.user.full_name}`
           }
           description={
             dialog.kind === "block"
               ? "Se cerrarán todas sus sesiones y no podrá ingresar hasta que la desbloquees."
               : dialog.kind === "password"
                 ? "Se cerrarán sus sesiones y deberá cambiar esta contraseña temporal al ingresar."
-                : "Solo aparecen los roles que tú puedes asignar."
+                : dialog.kind === "facility"
+                  ? "Con un establecimiento asignado solo verá y registrará gestantes de ese establecimiento."
+                  : "Solo aparecen los roles que tú puedes asignar."
           }
           onClose={() => setDialog(null)}
         >
@@ -198,6 +215,23 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                 <label className={forms.full}>
                   Nueva contraseña temporal *
                   <input name="password" type="password" required minLength={8} maxLength={128} autoComplete="new-password" autoFocus />
+                </label>
+              )}
+              {dialog.kind === "facility" && (
+                <label className={forms.full}>
+                  Establecimiento
+                  <select name="health_facility_id" defaultValue={dialog.user.health_facility_id ?? ""}>
+                    <option value="">Todos los establecimientos</option>
+                    {dialog.user.health_facility_id &&
+                      !data?.facilities.some((f) => f.id === dialog.user.health_facility_id) && (
+                        <option value={dialog.user.health_facility_id}>{dialog.user.health_facility_name}</option>
+                      )}
+                    {data?.facilities.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               )}
               {dialog.kind === "role" && (

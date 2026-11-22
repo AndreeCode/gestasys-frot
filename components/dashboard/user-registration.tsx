@@ -8,13 +8,17 @@ import { ErrorState } from "@/components/common/feedback";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel } from "@/components/common/panel";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
-import { createUser, loadAssignableRoles } from "@/lib/actions/users";
+import { createUser, loadUserFormOptions } from "@/lib/actions/users";
 import type { User } from "@/lib/api/types";
 import { roleTitle } from "@/lib/format";
+import { useSession } from "./session";
 import styles from "./forms.module.css";
 
 export function UserRegistration() {
-  const roles = useBackendQuery("assignable-roles", loadAssignableRoles);
+  const { profile } = useSession();
+  const options = useBackendQuery("user-form-options", loadUserFormOptions);
+  const scope = profile.health_facility_id;
+  const facilities = (options.data?.facilities ?? []).filter((f) => !scope || f.id === scope);
   const { run, pending } = useBackendAction();
   const [created, setCreated] = useState<User | null>(null);
   const [formKey, setFormKey] = useState(0);
@@ -32,6 +36,7 @@ export function UserRegistration() {
         password: String(form.get("password") ?? ""),
         dni: value("dni") || null,
         phone: value("phone") || null,
+        health_facility_id: scope ?? (value("health_facility_id") || null),
       }),
     );
     if (result) {
@@ -57,7 +62,7 @@ export function UserRegistration() {
             Usuario <b>{created.username}</b> ({created.full_name}) registrado con rol {roleTitle(created.role)}.
           </div>
         )}
-        {roles.error && <ErrorState error={roles.error} onRetry={roles.reload} />}
+        {options.error && <ErrorState error={options.error} onRetry={options.reload} />}
         <form key={formKey} onSubmit={onSubmit}>
           <div className={styles.grid}>
             <label>
@@ -76,15 +81,33 @@ export function UserRegistration() {
               Rol *
               <select name="role_id" required defaultValue="">
                 <option value="" disabled>
-                  {roles.loading ? "Cargando roles..." : "Selecciona un rol"}
+                  {options.loading ? "Cargando roles..." : "Selecciona un rol"}
                 </option>
-                {roles.data?.map((role) => (
+                {options.data?.roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {roleTitle(role.name)}
                     {role.description ? ` — ${role.description}` : ""}
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              Establecimiento{" "}
+              <span className={styles.hint}>
+                {scope ? "(solo puedes registrar usuarios de tu establecimiento)" : "(limita lo que la persona puede ver)"}
+              </span>
+              {scope ? (
+                <input value={profile.health_facility_name ?? ""} disabled readOnly />
+              ) : (
+                <select name="health_facility_id" defaultValue="">
+                  <option value="">Todos los establecimientos</option>
+                  {facilities.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label>
               DNI

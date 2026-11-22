@@ -18,6 +18,9 @@ export type User = {
   full_name: string;
   dni: string | null;
   phone: string | null;
+  /** Establecimiento al que está limitado; `null` = ve todos. */
+  health_facility_id: string | null;
+  health_facility_name: string | null;
   active: boolean;
   blocked: boolean;
   blocked_reason: string | null;

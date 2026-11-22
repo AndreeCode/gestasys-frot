@@ -28,7 +28,7 @@ const statusVariant: Record<PregnancyStatus, string | undefined> = {
 };
 
 export function Records() {
-  const { can } = useSession();
+  const { can, profile } = useSession();
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<PregnancyFilters>({ limit: LIMIT, offset: 0 });
   const [selected, setSelected] = useState<string | null>(null);
@@ -43,7 +43,8 @@ export function Records() {
 
   const { data, error, loading, reload } = useBackendQuery(JSON.stringify(filters), () => loadRecords(filters));
   const update = (patch: PregnancyFilters) => setFilters((f) => ({ ...f, ...patch, offset: 0 }));
-  const facilities = data?.facilities ?? [];
+  const scope = profile.health_facility_id;
+  const facilities = (data?.facilities ?? []).filter((f) => !scope || f.id === scope);
   const page = data?.page;
 
   const exportHref = `/files/export${toQuery({
