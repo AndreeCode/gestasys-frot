@@ -18,9 +18,12 @@ export type User = {
   full_name: string;
   dni: string | null;
   phone: string | null;
-  /** Establecimiento al que está limitado; `null` = ve todos. */
+  /** Establecimiento al que está limitado (registrador o admin de sede). */
   health_facility_id: string | null;
   health_facility_name: string | null;
+  /** Microred a cargo (admin de microred). Sin microred ni establecimiento = toda la red (superadmin). */
+  micro_network_id: string | null;
+  micro_network_name: string | null;
   active: boolean;
   blocked: boolean;
   blocked_reason: string | null;
@@ -32,8 +35,11 @@ export type User = {
   updated_at: string;
 };
 
+export type ScopeLevel = "network" | "micro_network" | "health_facility";
+
 export type Profile = User & {
   permissions: string[];
+  scope_level: ScopeLevel;
   session: { session_id: string; device_id: string; expires_at?: string };
   /** Tu rol exige verificación en dos pasos (MFA_REQUIRED + MFA_ROLES en el back). */
   mfa_required: boolean;
@@ -61,8 +67,30 @@ export type HealthFacility = {
   name: string;
   category: string | null;
   district: string | null;
+  province: string | null;
+  renaes: string | null;
+  micro_network_id: string | null;
+  micro_network_name: string | null;
   active: boolean;
   pregnancy_count: number;
+  user_count: number;
+};
+
+export type MicroNetwork = {
+  id: string;
+  code: string;
+  name: string;
+  network: string;
+  active: boolean;
+  facility_count: number;
+  pregnancy_count: number;
+  user_count: number;
+};
+
+/** Sección de la ficha MINSA (laboratorio, vacunas, plan de parto...) importada del Excel. */
+export type ClinicalSection = {
+  section: string;
+  items: { label: string; value: string; column?: string; color?: string }[];
 };
 
 export type Pregnancy = {
@@ -78,6 +106,22 @@ export type Pregnancy = {
   address: string | null;
   health_facility_id: string;
   health_facility_name: string;
+  micro_network_name: string | null;
+  clinical_record: string | null;
+  insurance: string | null;
+  province: string | null;
+  district: string | null;
+  locality: string | null;
+  obstetric_formula: string | null;
+  birth_date_estimated: boolean;
+  clinical_data: ClinicalSection[];
+  /** Color de la fila en el Excel MINSA (hex sin #); `row_marked` 1 = pintada, 0 = sin color. */
+  row_color: string | null;
+  row_marked: 0 | 1;
+  cell_marks: Record<string, string>;
+  source: "manual" | "import_minsa" | string;
+  import_id: string | null;
+  registered_by_name: string | null;
   last_menstrual_period: string | null;
   expected_delivery_date: string | null;
   gestational_age: { weeks: number; days: number } | null;
@@ -104,6 +148,10 @@ export type PregnancyInput = {
   phone: string | null;
   address: string | null;
   health_facility_id: string;
+  clinical_record: string | null;
+  insurance: string | null;
+  district: string | null;
+  locality: string | null;
   last_menstrual_period: string | null;
   expected_delivery_date: string | null;
   gravida: number | null;
@@ -119,6 +167,8 @@ export type PregnancyFilters = {
   health_facility_id?: string;
   status?: PregnancyStatus | "";
   risk_level?: RiskLevel | "";
+  /** "any" = filas pintadas (1), "none" = sin color (0), o un color hex. */
+  mark?: string;
   limit?: number;
   offset?: number;
 };
@@ -154,6 +204,11 @@ export type PrenatalControl = {
   hemoglobin: number | null;
   next_appointment: string | null;
   notes: string | null;
+  control_number: number | null;
+  supplementation: string | null;
+  risk_factor: string | null;
+  performed_at: string | null;
+  registered_by_name: string | null;
   alerts: string[];
 };
 
@@ -168,9 +223,12 @@ export type PrenatalControlInput = {
   hemoglobin: number | null;
   next_appointment: string | null;
   notes: string | null;
+  supplementation?: string | null;
+  risk_factor?: string | null;
+  performed_at?: string | null;
 };
 
-export type ImportRowError = { line: number; code?: string; message: string };
+export type ImportRowError = { line: number; sheet?: string; code?: string; level?: "error" | "warning"; message: string };
 
 export type DataImport = {
   id: string | null;
@@ -182,7 +240,46 @@ export type DataImport = {
   errors: ImportRowError[];
   dry_run: boolean;
   imported_by_name: string | null;
+  format: "csv" | "minsa_xlsx" | string;
+  controls: number;
+  warnings: number;
+  created_facilities: string[];
+  ip_address: string | null;
+  user_agent: string | null;
+  health_facility_name: string | null;
+  micro_network_name: string | null;
   created_at: string | null;
+};
+
+export type AuditLog = {
+  id: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+  action: string;
+  affected_table: string | null;
+  record_id: string | null;
+  record_label: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  result: "successful" | "failed" | "blocked";
+  details: Record<string, unknown> | null;
+  health_facility_name: string | null;
+  micro_network_name: string | null;
+  actor_health_facility_name: string | null;
+  created_at: string;
+};
+
+export type AuditFilters = {
+  q?: string;
+  action?: string;
+  affected_table?: string;
+  result?: string;
+  health_facility_id?: string;
+  date_from?: string;
+  date_to?: string;
+  limit: number;
+  offset: number;
 };
 
 export type Backup = {
@@ -203,6 +300,7 @@ export type Backup = {
 };
 
 export type BackupStatus = {
+  enabled: boolean;
   auto_enabled: boolean;
   schedule: string;
   next_run_at: string | null;
@@ -220,6 +318,8 @@ export type Activity = {
   action: string;
   description: string;
   user_name: string | null;
+  health_facility_name: string | null;
+  ip_address: string | null;
   created_at: string;
 };
 
@@ -232,14 +332,36 @@ export type Upcoming = {
   risk_level: RiskLevel;
 };
 
+export type Breakdown = {
+  total: number;
+  in_followup: number;
+  pending: number;
+  completed: number;
+  high_risk: number;
+};
+
 export type DashboardData = {
+  scope: {
+    level: ScopeLevel;
+    health_facility_name: string | null;
+    micro_network_name: string | null;
+    facilities: number | null;
+    active_users: number;
+  };
   stats: Stats;
-  by_facility: { health_facility_id: string; health_facility_name: string; total: number }[];
+  /** Lo que registró el propio usuario dentro de su ámbito. */
+  mine: Stats;
+  by_facility: (Breakdown & { health_facility_id: string; health_facility_name: string; micro_network_name: string | null })[];
+  /** Solo para el superadmin (toda la red). */
+  by_micro_network: (Breakdown & { micro_network_id: string | null; micro_network_name: string; facilities: number })[];
+  by_registrar: { user_id: string; full_name: string; role: string; health_facility_name: string | null; total: number; this_month: number; controls: number }[];
+  by_month: { month: string; registered: number; controls: number }[];
   recent_activity: Activity[];
   upcoming_appointments: Upcoming[];
   due_soon: Upcoming[];
   system: {
     database: "ok" | "error";
+    backup_enabled: boolean;
     backup_auto: boolean;
     backup_schedule: string;
     pg_dump_available: boolean;
@@ -254,4 +376,19 @@ export type DashboardData = {
     audit_chain_checked_at?: string | null;
     audit_chain_records?: number | null;
   };
+};
+
+export type MinsaSection = { id: string; title: string; fixed?: boolean };
+
+export type MinsaView = {
+  sections: MinsaSection[];
+  columns: { key: string; section: string; group: string; label: string }[];
+  rows: string[][];
+  fills: (string | null)[][];
+  legend: { color: string; name: string | null }[];
+  ids: string[];
+  codes: string[];
+  total: number;
+  limit: number;
+  offset: number;
 };

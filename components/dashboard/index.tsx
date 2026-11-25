@@ -7,9 +7,11 @@ import { ToastProvider } from "@/components/common/toast";
 import { AppShell } from "@/components/layout/app-shell";
 import { MobileMenuButton, Sidebar } from "@/components/layout/sidebar";
 import { useBackendQuery } from "@/hooks/use-backend";
-import { logoutAction, meAction } from "@/lib/actions/auth";
+import { meAction } from "@/lib/actions/auth";
 import { SECTION_PERMISSION, type Section } from "@/lib/types";
+import { AuditLogView } from "./audit";
 import { Backups } from "./backups";
+import { Networks } from "./networks";
 import { ForceMfaSetup } from "./account-security";
 import { ForcePasswordChange, Settings } from "./settings";
 import { ImportExport } from "./import-export";
@@ -19,15 +21,16 @@ import { RolesPermissions } from "./roles-permissions";
 import { SessionProvider } from "./session";
 import { UserRegistration } from "./user-registration";
 import { UsersPanel } from "./users-panel";
-import styles from "./dashboard.module.css";
 
 const ORDER: Section[] = [
   "Resumen",
   "Registros",
   "Importar datos",
-  "Registrar usuario",
+  "Red de salud",
   "Usuarios",
+  "Registrar usuario",
   "Roles y permisos",
+  "Auditoría",
   "Backups",
 ];
 
@@ -55,15 +58,32 @@ function DashboardContent() {
     [profile],
   );
 
-  async function logout() {
-    await logoutAction();
-    window.location.replace("/signed-out");
+  const [leaving, setLeaving] = useState(false);
+
+  /** POST a /signed-out: cierra la sesión en el back, borra la cookie y va al login en una sola navegación. */
+  function logout() {
+    setLeaving(true);
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/signed-out";
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  if (leaving) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-background p-6">
+        <LoadingState text="Cerrando sesión..." />
+      </div>
+    );
   }
 
   if (!profile) {
     return (
-      <div className={styles.fullscreen}>
-        {error ? <ErrorState error={error} onRetry={reload} /> : <LoadingState text="Cargando tu sesión..." />}
+      <div className="grid min-h-dvh place-items-center bg-background p-6">
+        <div className="w-full max-w-md">
+          {error ? <ErrorState error={error} onRetry={reload} /> : <LoadingState text="Cargando tu sesión..." />}
+        </div>
       </div>
     );
   }
@@ -107,6 +127,10 @@ function DashboardContent() {
           <UsersPanel onRegister={sections.includes("Registrar usuario") ? () => setChosen("Registrar usuario") : undefined} />
         ) : section === "Roles y permisos" ? (
           <RolesPermissions />
+        ) : section === "Red de salud" ? (
+          <Networks />
+        ) : section === "Auditoría" ? (
+          <AuditLogView />
         ) : section === "Backups" ? (
           <Backups />
         ) : (

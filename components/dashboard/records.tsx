@@ -1,30 +1,118 @@
 "use client";
 
-import { Download, Search } from "lucide-react";
+import { ChevronRight, Download, FileSpreadsheet, List, Plus, Search, Table2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import buttons from "@/components/common/buttons.module.css";
+import { RiskBadge, StatusBadge } from "@/components/common/badges";
 import { EmptyState, ErrorState, LoadingState, Pagination } from "@/components/common/feedback";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel, PanelHeading } from "@/components/common/panel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBackendQuery } from "@/hooks/use-backend";
-import { loadRecords } from "@/lib/actions/pregnancies";
+import { loadMinsaView, loadRecords } from "@/lib/actions/pregnancies";
 import type { PregnancyFilters, PregnancyStatus } from "@/lib/api/types";
-import { RISK_LABELS, STATUS_LABELS, formatDate, formatDateTime } from "@/lib/format";
+import { RISK_LABELS, STATUS_LABELS, formatDate, formatDateTime, gestationalAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ColorLegend, MinsaSheet, SectionPicker } from "./minsa-sheet";
+import { ColorMark } from "@/components/common/color-mark";
 import { RecordDetail } from "./record-detail";
 import { RecordForm } from "./record-form";
 import { RecordStats } from "./record-stats";
 import { useSession } from "./session";
-import styles from "./records.module.css";
 
 const LIMIT = 25;
 
-const statusVariant: Record<PregnancyStatus, string | undefined> = {
-  pending: styles.pending,
-  in_followup: undefined,
-  completed: styles.complete,
-};
+function MinsaPanel({
+  filters,
+  sections,
+  onSections,
+  onMark,
+  onOpen,
+  canExport,
+  exportFields,
+}: {
+  filters: PregnancyFilters;
+  sections: string[] | null;
+  onSections: (value: string[] | null) => void;
+  onMark: (mark: string | undefined) => void;
+  onOpen: (id: string) => void;
+  canExport: boolean;
+  exportFields: Record<string, string | undefined>;
+}) {
+  const [offset, setOffset] = useState(0);
+  const [binary, setBinary] = useState(false);
+  const query = { ...filters, limit: LIMIT, offset };
+  const key = JSON.stringify([query, sections]);
+  const { data, error, loading, reload } = useBackendQuery(`minsa:${key}`, () => loadMinsaView(query, sections));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-muted/40 p-3">
+        {data ? (
+          <SectionPicker
+            sections={data.sections}
+            value={sections}
+            onChange={(value) => {
+              onSections(value);
+              setOffset(0);
+            }}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">Cargando secciones...</span>
+        )}
+        {canExport && (
+          <form method="post" action="/files/export-minsa">
+            {Object.entries(exportFields).map(([name, value]) => (value ? <input key={name} type="hidden" name={name} value={value} /> : null))}
+            {(sections ?? []).map((id) => (
+              <input key={id} type="hidden" name="sections" value={id} />
+            ))}
+            {sections !== null && sections.length === 0 && <input type="hidden" name="sections" value="datos" />}
+            <Button type="submit" size="sm">
+              <FileSpreadsheet /> Exportar esta vista (.xlsx)
+            </Button>
+          </form>
+        )}
+      </div>
+      {data && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ColorLegend
+            legend={data.legend}
+            value={filters.mark}
+            onChange={(mark) => {
+              onMark(mark);
+              setOffset(0);
+            }}
+          />
+          <div className="inline-flex rounded-lg border bg-card p-0.5 text-xs" role="radiogroup" aria-label="Mostrar celdas">
+            {[
+              [false, "Valores"],
+              [true, "Marcas 0/1"],
+            ].map(([value, label]) => (
+              <button
+                key={String(label)}
+                role="radio"
+                aria-checked={binary === value}
+                onClick={() => setBinary(value as boolean)}
+                className={cn(
+                  "h-7 rounded-md px-2.5 font-medium",
+                  binary === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {label as string}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {error && <ErrorState error={error} onRetry={reload} />}
+      {loading && !data ? <LoadingState /> : data ? <MinsaSheet view={data} onOpen={onOpen} binary={binary} /> : null}
+      {data && <Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={setOffset} />}
+    </div>
+  );
+}
 
 export function Records() {
   const { can, profile } = useSession();
@@ -32,6 +120,8 @@ export function Records() {
   const [filters, setFilters] = useState<PregnancyFilters>({ limit: LIMIT, offset: 0 });
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [mode, setMode] = useState<"list" | "minsa">("list");
+  const [sections, setSections] = useState<string[] | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -51,12 +141,13 @@ export function Records() {
     health_facility_id: filters.health_facility_id,
     status: filters.status,
     risk_level: filters.risk_level,
+    mark: filters.mark,
   };
 
   return (
     <>
       <PageHeading
-        eyebrow="GESTIÓN DE INFORMACIÓN"
+        eyebrow="Gestión de información"
         title="Registros de gestantes"
         subtitle={
           can("pregnancy.put")
@@ -65,9 +156,9 @@ export function Records() {
         }
         action={
           can("pregnancy.post") && (
-            <button className={buttons.primary} onClick={() => setCreating(true)}>
-              <span>+</span> Nuevo registro
-            </button>
+            <Button size="lg" onClick={() => setCreating(true)}>
+              <Plus /> Nuevo registro
+            </Button>
           )
         }
       />
@@ -77,115 +168,195 @@ export function Records() {
           title="Todos los registros"
           description={page ? `${page.total} registros · actualizado ${formatDateTime(new Date().toISOString())}` : "Cargando..."}
           action={
-            can("pregnancy.export") && (
-              <form method="post" action="/files/export">
-                {Object.entries(exportFields).map(([name, value]) =>
-                  value ? <input key={name} type="hidden" name={name} value={value} /> : null,
-                )}
-                <button className={buttons.outline} type="submit">
-                  <Download size={16} /> Exportar
-                </button>
-              </form>
-            )
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-lg border bg-card p-0.5" role="radiogroup" aria-label="Vista">
+                {(
+                  [
+                    ["list", "Lista", List],
+                    ["minsa", "Formato MINSA", Table2],
+                  ] as const
+                ).map(([value, label, Icon]) => (
+                  <button
+                    key={value}
+                    role="radio"
+                    aria-checked={mode === value}
+                    onClick={() => setMode(value)}
+                    className={cn(
+                      "inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors",
+                      mode === value ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    <Icon className="size-4" /> {label}
+                  </button>
+                ))}
+              </div>
+              {can("pregnancy.export") && (
+                <>
+                  <form method="post" action="/files/export">
+                    {Object.entries(exportFields).map(([name, value]) =>
+                      value ? <input key={name} type="hidden" name={name} value={value} /> : null,
+                    )}
+                    <Button variant="outline" type="submit" title="CSV simple (una fila por gestante)">
+                      <Download /> CSV
+                    </Button>
+                  </form>
+                  {mode === "list" && (
+                    <form method="post" action="/files/export-minsa">
+                      {Object.entries(exportFields).map(([name, value]) =>
+                        value ? <input key={name} type="hidden" name={name} value={value} /> : null,
+                      )}
+                      <Button variant="outline" type="submit" title="Excel con el formato completo de seguimiento del MINSA">
+                        <FileSpreadsheet /> Excel MINSA
+                      </Button>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
           }
         />
-        <div className={styles.filters}>
-          <div className={styles.searchBox}>
-            <Search size={18} />
-            <input
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               aria-label="Buscar registros"
               placeholder="Buscar por nombre, DNI o código..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
             />
           </div>
-          <select
+          <NativeSelect
+            className="w-full md:w-48"
             aria-label="Filtrar por sede"
             value={filters.health_facility_id ?? ""}
             onChange={(e) => update({ health_facility_id: e.target.value || undefined })}
           >
-            <option value="">Todas las sedes</option>
+            <NativeSelectOption value="">Todas las sedes</NativeSelectOption>
             {facilities.map((f) => (
-              <option key={f.id} value={f.id}>
+              <NativeSelectOption key={f.id} value={f.id}>
                 {f.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-          <select
+          </NativeSelect>
+          <NativeSelect
+            className="w-full md:w-44"
             aria-label="Filtrar por estado"
             value={filters.status ?? ""}
             onChange={(e) => update({ status: (e.target.value || undefined) as PregnancyStatus | undefined })}
           >
-            <option value="">Todos los estados</option>
+            <NativeSelectOption value="">Todos los estados</NativeSelectOption>
             {(Object.keys(STATUS_LABELS) as PregnancyStatus[]).map((s) => (
-              <option key={s} value={s}>
+              <NativeSelectOption key={s} value={s}>
                 {STATUS_LABELS[s]}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-          <select
+          </NativeSelect>
+          <NativeSelect
+            className="w-full md:w-40"
             aria-label="Filtrar por riesgo"
             value={filters.risk_level ?? ""}
             onChange={(e) => update({ risk_level: (e.target.value || undefined) as PregnancyFilters["risk_level"] })}
           >
-            <option value="">Todo riesgo</option>
+            <NativeSelectOption value="">Todo riesgo</NativeSelectOption>
             {(Object.keys(RISK_LABELS) as (keyof typeof RISK_LABELS)[]).map((r) => (
-              <option key={r} value={r}>
+              <NativeSelectOption key={r} value={r}>
                 Riesgo {RISK_LABELS[r].toLowerCase()}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
+          <NativeSelect
+            className="w-full md:w-40"
+            aria-label="Filtrar por marca de color"
+            value={filters.mark === "any" || filters.mark === "none" || !filters.mark ? (filters.mark ?? "") : "color"}
+            onChange={(e) => update({ mark: e.target.value || undefined })}
+          >
+            <NativeSelectOption value="">Toda marca</NativeSelectOption>
+            <NativeSelectOption value="any">Pintadas (1)</NativeSelectOption>
+            <NativeSelectOption value="none">Sin color (0)</NativeSelectOption>
+            {filters.mark && filters.mark !== "any" && filters.mark !== "none" && (
+              <NativeSelectOption value="color" disabled>
+                Un color
+              </NativeSelectOption>
+            )}
+          </NativeSelect>
         </div>
-        {error && <ErrorState error={error} onRetry={reload} />}
-        {loading && !page ? (
+        {mode === "minsa" ? (
+          <MinsaPanel
+            filters={{
+              q: filters.q,
+              health_facility_id: filters.health_facility_id,
+              status: filters.status,
+              risk_level: filters.risk_level,
+              mark: filters.mark,
+            }}
+            sections={sections}
+            onSections={setSections}
+            onMark={(mark) => update({ mark })}
+            onOpen={setSelected}
+            canExport={can("pregnancy.export")}
+            exportFields={exportFields}
+          />
+        ) : null}
+        {mode === "list" && error && <ErrorState error={error} onRetry={reload} />}
+        {mode === "minsa" ? null : loading && !page ? (
           <LoadingState />
         ) : page && page.items.length === 0 ? (
           <EmptyState text="No hay registros que coincidan con los filtros." />
         ) : page ? (
           <>
-            <div className={styles.tableWrap}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>CÓDIGO</th>
-                    <th>GESTANTE</th>
-                    <th>SEDE</th>
-                    <th>EDAD GEST.</th>
-                    <th>RIESGO</th>
-                    <th>ÚLTIMO REGISTRO</th>
-                    <th>ESTADO</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="overflow-hidden rounded-lg border">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Código</TableHead>
+                    <TableHead>Gestante</TableHead>
+                    <TableHead>Sede</TableHead>
+                    <TableHead>Edad gest.</TableHead>
+                    <TableHead>Riesgo</TableHead>
+                    <TableHead>Último registro</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead title="Color de la fila en el Excel MINSA: 1 = pintada, 0 = sin color">Marca</TableHead>
+                    <TableHead className="w-8" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {page.items.map((record) => (
-                    <tr key={record.id} onClick={() => setSelected(record.id)}>
-                      <td className={styles.code}>{record.code}</td>
-                      <td>
-                        <strong>{record.full_name}</strong>
-                        <small>
+                    <TableRow
+                      key={record.id}
+                      className="group cursor-pointer"
+                      tabIndex={0}
+                      onClick={() => setSelected(record.id)}
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(record.id)}
+                    >
+                      <TableCell className="font-mono text-xs font-medium text-primary">{record.code}</TableCell>
+                      <TableCell>
+                        <strong className="block font-medium">{record.full_name}</strong>
+                        <small className="text-xs text-muted-foreground">
                           {record.age} años{record.dni ? ` · DNI ${record.dni}` : ""}
                         </small>
-                      </td>
-                      <td>{record.health_facility_name}</td>
-                      <td>
-                        {record.gestational_age
-                          ? `${record.gestational_age.weeks} sem ${record.gestational_age.days} d`
-                          : "—"}
-                      </td>
-                      <td>
-                        <span className={cn(styles.risk, styles[record.risk_level])}>{RISK_LABELS[record.risk_level]}</span>
-                      </td>
-                      <td>{formatDate(record.last_control_date ?? record.created_at)}</td>
-                      <td>
-                        <span className={cn(styles.status, statusVariant[record.status])}>
-                          <b />
-                          {STATUS_LABELS[record.status]}
-                        </span>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{record.health_facility_name}</TableCell>
+                      <TableCell className="tabular-nums">{gestationalAge(record.gestational_age)}</TableCell>
+                      <TableCell>
+                        <RiskBadge level={record.risk_level} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {formatDate(record.last_control_date ?? record.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={record.status} />
+                      </TableCell>
+                      <TableCell>
+                        <ColorMark color={record.row_color} />
+                      </TableCell>
+                      <TableCell>
+                        <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
             <Pagination
               total={page.total}

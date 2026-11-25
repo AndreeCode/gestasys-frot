@@ -9,10 +9,24 @@ export const STATUS_LABELS: Record<PregnancyStatus, string> = {
 export const RISK_LABELS: Record<RiskLevel, string> = { low: "Bajo", medium: "Medio", high: "Alto" };
 
 export const ROLE_TITLES: Record<string, string> = {
+  superadmin: "Superadministrador",
   admin: "Administrador",
+  registrador: "Registrador",
   coordinador: "Coordinador",
   consulta: "Consulta",
 };
+
+/** Ámbito de un usuario: toda la red, una microred o un establecimiento. */
+export function scopeLabel(user: {
+  health_facility_name: string | null;
+  micro_network_name: string | null;
+  health_facility_id: string | null;
+  micro_network_id: string | null;
+}): string {
+  if (user.health_facility_id) return user.health_facility_name ?? "Establecimiento";
+  if (user.micro_network_id) return user.micro_network_name ?? "Microred";
+  return "Toda la red de salud";
+}
 
 const AVATAR_COLORS = ["#e6a35d", "#5b9bd5", "#8b78c8", "#4fb093", "#d97a8a", "#6c8fa8"];
 
@@ -84,4 +98,66 @@ export function gestationalAge(ga: { weeks: number; days: number } | null): stri
 export function todayISO(): string {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+export const TABLE_LABELS: Record<string, string> = {
+  pregnancies: "Gestante",
+  prenatal_controls: "Control prenatal",
+  data_imports: "Importación",
+  users: "Usuario",
+  roles: "Rol",
+  role_permission: "Permiso de rol",
+  health_facilities: "Establecimiento",
+  micro_networks: "Microred",
+  backups: "Backup",
+  sessions: "Sesión",
+  devices: "Dispositivo",
+  permissions: "Permiso",
+};
+
+export const ACTION_LABELS: Record<string, string> = {
+  INSERT: "Registró",
+  UPDATE: "Modificó",
+  DELETE: "Eliminó",
+  LOGIN: "Inició sesión",
+  LOGIN_FAILED: "Intento fallido",
+  LOGOUT: "Cerró sesión",
+  PASSWORD_CHANGED: "Cambió contraseña",
+  MFA_ENABLED: "Activó 2FA",
+  MFA_DISABLED: "Desactivó 2FA",
+  MFA_RESET: "Restableció 2FA",
+  MFA_FAILED: "Código 2FA fallido",
+  SESSION_IDLE: "Sesión expirada",
+  SESSION_REVOKED: "Sesión cerrada",
+  ACCESS_DENIED: "Acceso denegado",
+};
+
+/** "Chrome · Windows" a partir del User-Agent (solo para mostrar; el texto completo queda en la auditoría). */
+export function describeUserAgent(ua: string | null | undefined): string {
+  if (!ua) return "Dispositivo desconocido";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /OPR\//.test(ua)
+      ? "Opera"
+      : /Firefox\//.test(ua)
+        ? "Firefox"
+        : /Chrome\//.test(ua)
+          ? "Chrome"
+          : /Safari\//.test(ua)
+            ? "Safari"
+            : /python|curl|httpx|node/i.test(ua)
+              ? "Script"
+              : "Navegador";
+  const os = /Android/.test(ua)
+    ? "Android"
+    : /iPhone|iPad/.test(ua)
+      ? "iOS"
+      : /Windows/.test(ua)
+        ? "Windows"
+        : /Mac OS X/.test(ua)
+          ? "macOS"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : "";
+  return os ? `${browser} · ${os}` : browser;
 }

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 import { BACKEND_URL } from "@/lib/backend";
 import { forwardedHeaders } from "@/lib/api/forwarded";
-import type { ApiResult } from "@/lib/api/types";
+import type { ApiResult, Page } from "@/lib/api/types";
 import { toQuery } from "@/lib/query";
 import { SESSION_COOKIE } from "@/lib/cookie-names";
 
@@ -71,3 +71,22 @@ export function orEmpty<T>(result: ApiResult<T[]>): ApiResult<T[]> {
 }
 
 export const id = (value: string) => encodeURIComponent(value);
+
+/** Lista paginada: junta los items con `meta.total/limit/offset` del back. */
+export async function paged<T>(
+  path: string,
+  query: Record<string, unknown> & { limit: number; offset: number },
+): Promise<ApiResult<Page<T>>> {
+  const result = await backend<T[]>(path, { query });
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    msg: result.msg,
+    data: {
+      items: result.data,
+      total: Number(result.meta?.total ?? result.data.length),
+      limit: Number(result.meta?.limit ?? query.limit),
+      offset: Number(result.meta?.offset ?? query.offset),
+    },
+  };
+}

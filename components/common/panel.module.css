@@ -1,8 +1,0 @@
-.panel { background: #fff; border: 1px solid #e4ecef; border-radius: 9px; overflow: hidden; }
-.heading { display: flex; justify-content: space-between; align-items: center; padding: 22px 24px 17px; }
-.heading h2 { color: var(--navy); font-size: 15px; margin: 0 0 5px; }
-.heading p { color: #9aa7ae; font-size: 10px; margin: 0; }
-
-@media (max-width: 640px) {
-  .heading { padding: 18px 16px 14px; }
-}

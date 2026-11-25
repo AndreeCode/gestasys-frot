@@ -1,10 +1,9 @@
 "use client";
 
-import { X } from "lucide-react";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import styles from "./toast.module.css";
 
 type Tone = "success" | "danger";
 type Toast = { id: number; text: string; tone: Tone };
@@ -30,15 +29,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className={styles.stack} aria-live="polite">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={cn(styles.toast, toast.tone === "danger" && styles.danger)} role="status">
-            <p>{toast.text}</p>
-            <button aria-label="Cerrar aviso" onClick={() => dismiss(toast.id)}>
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+      <div
+        className="pointer-events-none fixed inset-x-4 bottom-4 z-100 flex flex-col items-end gap-2 sm:left-auto sm:w-96"
+        aria-live="polite"
+      >
+        {toasts.map((toast) => {
+          const Icon = toast.tone === "danger" ? AlertCircle : CheckCircle2;
+          return (
+            <div
+              key={toast.id}
+              role="status"
+              className={cn(
+                "pointer-events-auto flex w-full animate-in items-start gap-3 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg fade-in-0 slide-in-from-bottom-2",
+                toast.tone === "danger" ? "border-destructive/30" : "border-success/30",
+              )}
+            >
+              <Icon className={cn("mt-0.5 size-4 shrink-0", toast.tone === "danger" ? "text-destructive" : "text-success")} />
+              <p className="flex-1 leading-snug">{toast.text}</p>
+              <button
+                className="rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Cerrar aviso"
+                onClick={() => dismiss(toast.id)}
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

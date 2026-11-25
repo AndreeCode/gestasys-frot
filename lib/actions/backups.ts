@@ -1,12 +1,12 @@
 "use server";
 
-import { backend, combine, id } from "@/lib/api/server";
+import { backend, combine, id, paged } from "@/lib/api/server";
 import type { Backup, BackupStatus } from "@/lib/api/types";
 
-export async function loadBackups() {
+export async function loadBackups(limit: number, offset: number) {
   const [status, backups] = await Promise.all([
     backend<BackupStatus>("/backups/status"),
-    backend<Backup[]>("/backups", { query: { limit: 50 } }),
+    paged<Backup>("/backups", { limit, offset }),
   ]);
   return combine({ status, backups });
 }

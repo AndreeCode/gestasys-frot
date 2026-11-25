@@ -1,10 +1,9 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import styles from "./modal.module.css";
 
 export function Modal({
   title,
@@ -21,27 +20,21 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
-    <div className={styles.backdrop} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className={cn(styles.dialog, wide && styles.wide)} role="dialog" aria-modal="true" aria-label={title}>
-        <div className={styles.header}>
-          <div>
-            <h2>{title}</h2>
-            {description && <p>{description}</p>}
-          </div>
-          <button className={styles.close} aria-label="Cerrar" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className={styles.body}>{children}</div>
-        {footer && <div className={styles.footer}>{footer}</div>}
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className={cn(
+          "max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto p-6",
+          wide ? "sm:max-w-4xl" : "sm:max-w-lg",
+        )}
+      >
+        <DialogHeader className="pr-8">
+          <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
+        <div className="min-w-0">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t pt-4">{footer}</div>}
+      </DialogContent>
+    </Dialog>
   );
 }

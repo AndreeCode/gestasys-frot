@@ -8,7 +8,7 @@ import { CLEAR_SITE_DATA, SESSION_COOKIE } from "@/lib/cookie-names";
  */
 export async function GET(request: NextRequest) {
   (await cookies()).delete(SESSION_COOKIE);
-  const response = NextResponse.redirect(new URL("/login", request.url));
+  const response = NextResponse.redirect(new URL("/login?motivo=expirada", request.url));
   for (const [key, value] of Object.entries(CLEAR_SITE_DATA)) response.headers.set(key, value);
   return response;
 }

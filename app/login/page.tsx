@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 
-import { LoginForm } from "@/components/login/login-form";
+import { LoginForm, type LoginReason } from "@/components/login/login-form";
 
 export const metadata: Metadata = { title: "Iniciar sesión | gestasys" };
 
-export default function LoginPage() {
-  return <LoginForm />;
+const REASONS = new Set<LoginReason>(["salida", "expirada"]);
+
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const motivo = (await searchParams).motivo;
+  const reason = typeof motivo === "string" && REASONS.has(motivo as LoginReason) ? (motivo as LoginReason) : null;
+  return <LoginForm reason={reason} />;
 }

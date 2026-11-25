@@ -1,18 +1,21 @@
 "use client";
 
-import { UserPlus } from "lucide-react";
+import { CheckCircle2, UserPlus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-import buttons from "@/components/common/buttons.module.css";
-import { ErrorState } from "@/components/common/feedback";
+import { ErrorState, Notice } from "@/components/common/feedback";
+import { Field, FormActions, FormGrid } from "@/components/common/form";
 import { PageHeading } from "@/components/common/page-heading";
-import { Panel } from "@/components/common/panel";
+import { Panel, PanelHeading } from "@/components/common/panel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
 import { createUser, loadUserFormOptions } from "@/lib/actions/users";
 import type { User } from "@/lib/api/types";
 import { roleTitle } from "@/lib/format";
 import { useSession } from "./session";
-import styles from "./forms.module.css";
+import { ScopeOptions, parseScope } from "./users-panel";
 
 export function UserRegistration() {
   const { profile } = useSession();
@@ -36,7 +39,7 @@ export function UserRegistration() {
         password: String(form.get("password") ?? ""),
         dni: value("dni") || null,
         phone: value("phone") || null,
-        health_facility_id: scope ?? (value("health_facility_id") || null),
+        ...(scope ? { health_facility_id: scope } : parseScope(value("scope"))),
       }),
     );
     if (result) {
@@ -48,78 +51,78 @@ export function UserRegistration() {
   return (
     <>
       <PageHeading
-        eyebrow="GESTIÓN DE ACCESOS"
+        eyebrow="Gestión de accesos"
         title="Registrar usuario"
         subtitle="Solo puedes asignar roles cuyos permisos también tienes."
       />
-      <Panel className={styles.card}>
-        <h2 style={{ margin: "22px 0 5px" }}>Datos del nuevo usuario</h2>
-        <p style={{ margin: "0 0 18px", fontSize: 11, color: "#9aa7ae" }}>
-          Completa la información y asigna un rol. La persona deberá cambiar la contraseña temporal al ingresar.
-        </p>
+      <Panel className="max-w-4xl">
+        <PanelHeading
+          title="Datos del nuevo usuario"
+          description="Completa la información y asigna un rol. La persona deberá cambiar la contraseña temporal al ingresar."
+          icon={<UserPlus className="size-[18px]" />}
+        />
         {created && (
-          <div className={styles.notice}>
-            Usuario <b>{created.username}</b> ({created.full_name}) registrado con rol {roleTitle(created.role)}.
-          </div>
+          <Notice tone="success" className="mb-5 flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Usuario <b>{created.username}</b> ({created.full_name}) registrado con rol {roleTitle(created.role)}.
+            </span>
+          </Notice>
         )}
         {options.error && <ErrorState error={options.error} onRetry={options.reload} />}
         <form key={formKey} onSubmit={onSubmit}>
-          <div className={styles.grid}>
-            <label>
-              Nombre completo *
-              <input name="full_name" required maxLength={200} placeholder="Ej. Ana García" />
-            </label>
-            <label>
-              Correo electrónico *
-              <input name="email" type="email" required maxLength={255} placeholder="usuario@salud.gob.pe" />
-            </label>
-            <label>
-              Usuario <span className={styles.hint}>(opcional, por defecto el correo)</span>
-              <input name="username" maxLength={100} pattern="\S+" title="Sin espacios" placeholder="agarcia" />
-            </label>
-            <label>
-              Rol *
-              <select name="role_id" required defaultValue="">
-                <option value="" disabled>
+          <FormGrid>
+            <Field label="Nombre completo *">
+              <Input name="full_name" required maxLength={200} placeholder="Ej. Ana García" />
+            </Field>
+            <Field label="Correo electrónico *">
+              <Input name="email" type="email" required maxLength={255} placeholder="usuario@salud.gob.pe" />
+            </Field>
+            <Field label="Usuario" hint="(opcional, por defecto el correo)">
+              <Input name="username" maxLength={100} pattern="\S+" title="Sin espacios" placeholder="agarcia" />
+            </Field>
+            <Field label="Rol *">
+              <NativeSelect className="w-full" name="role_id" required defaultValue="">
+                <NativeSelectOption value="" disabled>
                   {options.loading ? "Cargando roles..." : "Selecciona un rol"}
-                </option>
+                </NativeSelectOption>
                 {options.data?.roles.map((role) => (
-                  <option key={role.id} value={role.id}>
+                  <NativeSelectOption key={role.id} value={role.id}>
                     {roleTitle(role.name)}
                     {role.description ? ` — ${role.description}` : ""}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
-            </label>
-            <label>
-              Establecimiento{" "}
-              <span className={styles.hint}>
-                {scope ? "(solo puedes registrar usuarios de tu establecimiento)" : "(limita lo que la persona puede ver)"}
-              </span>
+              </NativeSelect>
+            </Field>
+            <Field
+              label="Ámbito"
+              hint={scope ? "(solo puedes registrar usuarios de tu establecimiento)" : "(qué gestantes podrá ver)"}
+            >
               {scope ? (
-                <input value={profile.health_facility_name ?? ""} disabled readOnly />
+                <Input value={profile.health_facility_name ?? ""} disabled readOnly />
               ) : (
-                <select name="health_facility_id" defaultValue="">
-                  <option value="">Todos los establecimientos</option>
-                  {facilities.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
+                <NativeSelect className="w-full" name="scope" required={profile.scope_level !== "network"} defaultValue="">
+                  {profile.scope_level !== "network" && (
+                    <NativeSelectOption value="" disabled>
+                      Elige la microred o el EE.SS.
+                    </NativeSelectOption>
+                  )}
+                  <ScopeOptions
+                    networks={options.data?.networks ?? []}
+                    facilities={facilities}
+                    allowNetwork={profile.scope_level === "network"}
+                  />
+                </NativeSelect>
               )}
-            </label>
-            <label>
-              DNI
-              <input name="dni" inputMode="numeric" pattern="[0-9]{8}" title="8 dígitos" maxLength={8} />
-            </label>
-            <label>
-              Teléfono
-              <input name="phone" maxLength={30} />
-            </label>
-            <label>
-              Contraseña temporal *
-              <input
+            </Field>
+            <Field label="DNI">
+              <Input name="dni" inputMode="numeric" pattern="[0-9]{8}" title="8 dígitos" maxLength={8} />
+            </Field>
+            <Field label="Teléfono">
+              <Input name="phone" maxLength={30} />
+            </Field>
+            <Field label="Contraseña temporal *">
+              <Input
                 name="password"
                 type="password"
                 required
@@ -128,13 +131,13 @@ export function UserRegistration() {
                 autoComplete="new-password"
                 placeholder="Mínimo 8 caracteres; mejor una frase larga"
               />
-            </label>
-          </div>
-          <div className={styles.actions} style={{ justifyContent: "flex-start", marginBottom: 24 }}>
-            <button className={buttons.primary} disabled={pending}>
-              <UserPlus size={16} /> {pending ? "Registrando..." : "Registrar usuario"}
-            </button>
-          </div>
+            </Field>
+          </FormGrid>
+          <FormActions className="justify-start border-t pt-5">
+            <Button type="submit" size="lg" disabled={pending}>
+              <UserPlus /> {pending ? "Registrando..." : "Registrar usuario"}
+            </Button>
+          </FormActions>
         </form>
       </Panel>
     </>

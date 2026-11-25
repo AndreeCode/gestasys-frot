@@ -1,42 +1,81 @@
 "use client";
 
-import { Download, FileCheck, Upload } from "lucide-react";
+import { AlertTriangle, Building2, Download, FileCheck, FileSpreadsheet, FileUp, Globe, Info, Monitor, Upload, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 
-import buttons from "@/components/common/buttons.module.css";
-import { EmptyState } from "@/components/common/feedback";
-import grid from "@/components/common/grid.module.css";
+import { Pill } from "@/components/common/badges";
+import { EmptyState, Notice, Pagination } from "@/components/common/feedback";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel, PanelHeading } from "@/components/common/panel";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
 import { importCsv, loadImports } from "@/lib/actions/imports";
-import type { ApiResult, DataImport } from "@/lib/api/types";
-import { formatBytes, formatDateTime } from "@/lib/format";
+import type { ApiResult, DataImport, Page } from "@/lib/api/types";
+import { describeUserAgent, formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSession } from "./session";
-import styles from "./import-export.module.css";
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const HISTORY_LIMIT = 10;
+
+function Count({ label, value, tone }: { label: string; value: number; tone?: "bad" | "warn" }) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-4 py-3",
+        tone === "bad" && value > 0 ? "bg-destructive/8 text-destructive" : tone === "warn" && value > 0 ? "bg-warning/12" : "bg-muted/60",
+      )}
+    >
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <strong className="block text-2xl font-semibold tabular-nums">{value}</strong>
+    </div>
+  );
+}
 
 function ImportResult({ result }: { result: DataImport }) {
+  const minsa = result.format === "minsa_xlsx";
+  const problems = result.errors.filter((e) => e.level !== "warning");
+  const warnings = result.errors.filter((e) => e.level === "warning");
   return (
-    <Panel className={styles.result}>
+    <Panel className="mt-6">
       <PanelHeading
         title={result.dry_run ? "Resultado de la validación" : "Resultado de la importación"}
-        description={`${result.file_name} · ${result.total_rows} filas${result.dry_run ? " · no se guardó nada" : ""}`}
+        description={`${result.file_name} · ${result.total_rows} ${minsa ? "gestantes" : "filas"}${result.dry_run ? " · no se guardó nada" : ""}`}
+        icon={<FileCheck className="size-[18px]" />}
       />
-      <div className={styles.counts}>
-        <div><span>Filas</span><strong>{result.total_rows}</strong></div>
-        <div><span>{result.dry_run ? "Se crearían" : "Nuevos"}</span><strong>{result.inserted}</strong></div>
-        <div><span>{result.dry_run ? "Se actualizarían" : "Actualizados"}</span><strong>{result.updated}</strong></div>
-        <div className={result.failed ? styles.bad : ""}><span>Con errores</span><strong>{result.failed}</strong></div>
+      <div className={cn("grid grid-cols-2 gap-3", minsa ? "md:grid-cols-6" : "md:grid-cols-4")}>
+        <Count label={minsa ? "Gestantes" : "Filas"} value={result.total_rows} />
+        <Count label={result.dry_run ? "Se crearían" : "Nuevas"} value={result.inserted} />
+        <Count label={result.dry_run ? "Se actualizarían" : "Actualizadas"} value={result.updated} />
+        {minsa && <Count label="Controles (APN)" value={result.controls} />}
+        {minsa && <Count label="Avisos" value={result.warnings} tone="warn" />}
+        <Count label="Con errores" value={result.failed} tone="bad" />
       </div>
-      {result.errors.length > 0 && (
-        <div className={styles.errors}>
-          {result.errors.map((e) => (
-            <div key={`${e.line}-${e.message}`}>
-              <b>Línea {e.line}</b>
-              <span>{e.code ? `${e.code}: ` : ""}{e.message}</span>
+      {result.created_facilities?.length > 0 && (
+        <Notice tone="info" className="mt-4 flex items-start gap-2">
+          <Building2 className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {result.dry_run ? "Se crearían" : "Se crearon"} los establecimientos: <b>{result.created_facilities.join(", ")}</b> (con su microred).
+          </span>
+        </Notice>
+      )}
+      {(problems.length > 0 || warnings.length > 0) && (
+        <div className="mt-4 max-h-80 divide-y overflow-y-auto rounded-lg border">
+          {[...problems, ...warnings].map((e, i) => (
+            <div key={`${e.sheet}-${e.line}-${i}`} className="flex gap-3 px-4 py-2.5 text-sm">
+              {e.level === "warning" ? (
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+              ) : (
+                <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              )}
+              <span className="w-28 shrink-0 font-medium">
+                {e.sheet ? `${e.sheet} · ` : ""}fila {e.line}
+              </span>
+              <span className="text-muted-foreground">
+                {e.code ? <span className="mr-1 font-mono text-xs text-foreground">{e.code}</span> : null}
+                {e.message}
+              </span>
             </div>
           ))}
         </div>
@@ -45,15 +84,22 @@ function ImportResult({ result }: { result: DataImport }) {
   );
 }
 
-const noHistory = async (): Promise<ApiResult<DataImport[]>> => ({ ok: true, data: [], msg: "" });
+const noHistory = async (): Promise<ApiResult<Page<DataImport>>> => ({
+  ok: true,
+  data: { items: [], total: 0, limit: HISTORY_LIMIT, offset: 0 },
+  msg: "",
+});
 
 export function ImportExport() {
   const { can } = useSession();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<DataImport | null>(null);
+  const [offset, setOffset] = useState(0);
   const { run, pending } = useBackendAction();
-  const history = useBackendQuery("imports", can("data_import.get") ? loadImports : noHistory);
+  const history = useBackendQuery(`imports:${offset}`, () =>
+    can("data_import.get") ? loadImports(HISTORY_LIMIT, offset) : noHistory(),
+  );
 
   function pick(selected: File | null) {
     setResult(null);
@@ -75,63 +121,120 @@ export function ImportExport() {
     if (!dryRun) {
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
-      history.reload();
+      if (offset === 0) history.reload();
+      else setOffset(0);
     }
   }
+
+  const isExcel = file?.name.toLowerCase().endsWith(".xlsx");
 
   return (
     <>
       <PageHeading
-        eyebrow="GESTIÓN DE INFORMACIÓN"
+        eyebrow="Gestión de información"
         title="Importar y exportar datos"
-        subtitle="Carga registros desde un archivo CSV o descarga una copia autorizada."
+        subtitle="Carga el Excel de seguimiento de gestantes del MINSA o un CSV, y descarga copias autorizadas."
       />
-      <section className={grid.split}>
-        <Panel as="article" className={styles.card}>
-          <Upload size={24} />
-          <h2>Importar registros</h2>
-          <p>
-            Columnas mínimas: nombres, apellidos, fecha_nacimiento y establecimiento. Con <b>codigo</b> se actualiza un
-            registro existente; sin él se crea uno nuevo. Primero valida el archivo para revisar errores.
-          </p>
-          <label className={styles.drop}>
-            <Upload size={20} />
-            <strong>{file ? file.name : "Seleccionar archivo CSV"}</strong>
-            <span>{file ? formatBytes(file.size) : "Formato .csv (coma o punto y coma) · máximo 10 MB"}</span>
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <Panel as="article" className="flex flex-col">
+          <PanelHeading title="Importar registros" icon={<Upload className="size-[18px]" />} />
+          <div className="mb-5 grid gap-3 text-sm sm:grid-cols-2">
+            <div className="rounded-lg border bg-accent/40 p-3">
+              <strong className="flex items-center gap-1.5 font-medium">
+                <FileSpreadsheet className="size-4 text-primary" /> Excel MINSA (.xlsx)
+              </strong>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Formato de seguimiento de gestantes: datos, hasta 13 APN, laboratorio, vacunas, plan de parto, parto y puerperio. Se
+                reconoce por la fila con <b>APELLIDOS Y NOMBRES</b> y <b>DNI</b>.
+              </p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <strong className="flex items-center gap-1.5 font-medium">
+                <Info className="size-4 text-muted-foreground" /> CSV
+              </strong>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Columnas mínimas: nombres, apellidos, fecha_nacimiento y establecimiento. Con <b>codigo</b> actualiza un registro.
+              </p>
+            </div>
+          </div>
+          <label
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors focus-within:ring-3 focus-within:ring-ring/50",
+              file ? "border-primary/50 bg-accent/50" : "hover:border-primary/40 hover:bg-muted/50",
+            )}
+          >
+            <span className="grid size-12 place-items-center rounded-full bg-accent text-accent-foreground">
+              {file ? <FileSpreadsheet className="size-6" /> : <FileUp className="size-6" />}
+            </span>
+            <strong className="text-sm font-medium">{file ? file.name : "Seleccionar Excel o CSV"}</strong>
+            <span className="text-xs text-muted-foreground">
+              {file ? `${formatBytes(file.size)} · ${isExcel ? "formato MINSA" : "CSV"}` : ".xlsx o .csv · máximo 10 MB"}
+            </span>
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="sr-only"
               onChange={(event) => pick(event.target.files?.[0] ?? null)}
             />
           </label>
-          <div className={styles.row}>
-            <button className={buttons.outline} disabled={!file || pending} onClick={() => send(true)}>
-              <FileCheck size={16} /> Validar sin guardar
-            </button>
-            <button className={buttons.primary} disabled={!file || pending} onClick={() => send(false)}>
-              <Upload size={16} /> {pending ? "Procesando..." : "Importar archivo"}
-            </button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button variant="outline" disabled={!file || pending} onClick={() => send(true)}>
+              <FileCheck /> Validar sin guardar
+            </Button>
+            <Button disabled={!file || pending} onClick={() => send(false)}>
+              <Upload /> {pending ? "Procesando..." : "Importar archivo"}
+            </Button>
+            <a className={cn(buttonVariants({ variant: "link" }), "ml-auto px-0")} href="/files/import-template" download>
+              Plantilla CSV
+            </a>
           </div>
-          <a className={buttons.ghost} href="/files/import-template" download>
-            Descargar plantilla CSV
-          </a>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Cada importación queda en la auditoría con tu usuario, establecimiento, IP y dispositivo. Primero valida: no se guarda nada.
+          </p>
         </Panel>
-        <Panel as="article" className={styles.card}>
-          <Download size={24} />
-          <h2>Exportar registros</h2>
-          <p>Descarga todos los registros activos en CSV (UTF-8, compatible con Excel).</p>
+        <Panel as="article">
+          <PanelHeading title="Exportar registros" icon={<Download className="size-[18px]" />} />
+          <p className="mb-5 text-sm text-muted-foreground">
+            Registros activos de tu ámbito. El Excel MINSA tiene las mismas columnas del formato y se puede volver a importar.
+          </p>
           {can("pregnancy.export") ? (
-            <div className={styles.row}>
-              <a className={buttons.outline} href="/files/export" download>
-                <Download size={16} /> Descargar CSV (coma)
+            <div className="grid gap-3">
+              <form method="post" action="/files/export-minsa">
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-accent/40 p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent"
+                >
+                  <FileSpreadsheet className="size-5 text-primary" />
+                  <span>
+                    <strong className="block text-sm font-medium">Excel formato MINSA (.xlsx)</strong>
+                    <span className="text-xs text-muted-foreground">
+                      Completo: datos, 13 APN, laboratorio, vacunas, parto... Para elegir secciones usa Registros → Formato MINSA
+                    </span>
+                  </span>
+                </button>
+              </form>
+              <a className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/50" href="/files/export" download>
+                <Download className="size-5 text-primary" />
+                <span>
+                  <strong className="block text-sm font-medium">CSV estándar</strong>
+                  <span className="text-xs text-muted-foreground">Separado por comas</span>
+                </span>
               </a>
-              <a className={buttons.outline} href="/files/export?delimiter=%3B" download>
-                <Download size={16} /> CSV para Excel (punto y coma)
+              <a
+                className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/50"
+                href="/files/export?delimiter=%3B"
+                download
+              >
+                <FileSpreadsheet className="size-5 text-primary" />
+                <span>
+                  <strong className="block text-sm font-medium">CSV para Excel</strong>
+                  <span className="text-xs text-muted-foreground">Separado por punto y coma</span>
+                </span>
               </a>
             </div>
           ) : (
-            <p>No tienes permiso para exportar registros.</p>
+            <p className="text-sm text-muted-foreground">No tienes permiso para exportar registros.</p>
           )}
         </Panel>
       </section>
@@ -139,21 +242,65 @@ export function ImportExport() {
       {result && <ImportResult result={result} />}
 
       {can("data_import.get") && (
-        <Panel className={styles.history}>
-          <PanelHeading title="Historial de importaciones" description="Últimas 10 importaciones realizadas" />
-          {history.data && history.data.length === 0 && <EmptyState text="Aún no se han importado archivos." />}
-          {history.data?.map((item) => (
-            <div className={styles.historyRow} key={item.id ?? item.file_name}>
-              <strong>{item.file_name}</strong>
-              <span>{formatDateTime(item.created_at)}</span>
-              <span>
-                {item.inserted} nuevos · {item.updated} act.
-              </span>
-              <span className={cn(item.failed > 0 && styles.bad)}>
-                {item.failed} con errores{item.imported_by_name ? ` · ${item.imported_by_name}` : ""}
-              </span>
+        <Panel className="mt-6">
+          <PanelHeading
+            title="Historial de importaciones"
+            description={history.data ? `${history.data.total} importaciones · quién, cuándo, dónde y desde qué equipo` : "Cargando..."}
+          />
+          {history.data && history.data.total === 0 && <EmptyState text="Aún no se han importado archivos." />}
+          {history.data && history.data.items.length > 0 && (
+            <div className="overflow-hidden rounded-lg border">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Archivo</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Resultado</TableHead>
+                    <TableHead>Importó</TableHead>
+                    <TableHead>Desde</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.data.items.map((item) => (
+                    <TableRow key={item.id ?? item.file_name}>
+                      <TableCell className="align-top">
+                        <strong className="block max-w-64 truncate font-medium">{item.file_name}</strong>
+                        <Pill tone={item.format === "minsa_xlsx" ? "primary" : "neutral"} className="mt-1 h-5 text-[11px]">
+                          {item.format === "minsa_xlsx" ? "Excel MINSA" : "CSV"}
+                        </Pill>
+                      </TableCell>
+                      <TableCell className="align-top text-xs tabular-nums">{formatDateTime(item.created_at)}</TableCell>
+                      <TableCell className="align-top text-sm">
+                        {item.inserted} nuevas · {item.updated} act.
+                        <span className={cn("block text-xs", item.failed > 0 ? "font-medium text-destructive" : "text-muted-foreground")}>
+                          {item.failed} con errores
+                        </span>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <span className="block text-sm">{item.imported_by_name ?? "—"}</span>
+                        <small className="text-xs text-muted-foreground">
+                          {item.health_facility_name ?? item.micro_network_name ?? "Nivel red"}
+                        </small>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <span className="flex items-center gap-1.5 font-mono text-xs">
+                          <Globe className="size-3.5 text-muted-foreground" />
+                          {item.ip_address ?? "—"}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Monitor className="size-3.5" />
+                          {describeUserAgent(item.user_agent)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          ))}
+          )}
+          {history.data && (
+            <Pagination total={history.data.total} limit={history.data.limit} offset={history.data.offset} onChange={setOffset} />
+          )}
         </Panel>
       )}
     </>

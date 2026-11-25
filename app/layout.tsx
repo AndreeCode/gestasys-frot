@@ -1,16 +1,16 @@
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import "@/styles/base.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "gestasys | Registros maternos",
   description: "Gestión y seguimiento de registros maternos en gestasys.",
-  generator: "v0.app",
   icons: {
     icon: [
       {
@@ -33,8 +33,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 };
 
@@ -45,11 +45,11 @@ export default async function RootLayout({
 }>) {
   // El nonce de la CSP exige renderizar cada petición (lib/csp.ts).
   await connection();
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="es" className={cn("font-sans", geist.variable)}>
+    <html lang="es" className={cn("font-sans", geist.variable, theme !== "system" && theme)} suppressHydrationWarning>
       <body className="antialiased">
         {children}
-        {process.env.NODE_ENV === "production" }
       </body>
     </html>
   );

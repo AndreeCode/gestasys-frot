@@ -1,21 +1,23 @@
 "use client";
 
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Plus, RotateCcw, ShieldCheck, Trash, Users } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 
-import buttons from "@/components/common/buttons.module.css";
+import { Pill } from "@/components/common/badges";
 import { ErrorState, LoadingState } from "@/components/common/feedback";
+import { Field, FormActions, FormGrid } from "@/components/common/form";
 import { Modal } from "@/components/common/modal";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel, PanelHeading } from "@/components/common/panel";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
 import { createRole, deleteRole, loadRoles, updateRole } from "@/lib/actions/roles";
 import type { Permission, Role } from "@/lib/api/types";
 import { roleTitle } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useSession } from "./session";
-import forms from "./forms.module.css";
-import styles from "./permissions.module.css";
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Resumen",
@@ -23,6 +25,7 @@ const MODULE_LABELS: Record<string, string> = {
   prenatal_control: "Controles prenatales",
   data_import: "Importaciones",
   health_facility: "Establecimientos",
+  micro_network: "Microredes",
   user: "Usuarios",
   role: "Roles",
   permission: "Permisos",
@@ -89,10 +92,9 @@ function RoleForm({
       wide
     >
       <form onSubmit={onSubmit}>
-        <div className={forms.grid}>
-          <label>
-            Nombre *
-            <input
+        <FormGrid>
+          <Field label="Nombre *">
+            <Input
               name="name"
               required
               minLength={2}
@@ -101,55 +103,62 @@ function RoleForm({
               disabled={role?.is_system}
               placeholder="ej. obstetra"
             />
-          </label>
-          <label>
-            Descripción
-            <input name="description" maxLength={300} defaultValue={role?.description ?? ""} placeholder="ej. Registra controles" />
-          </label>
-        </div>
-        <div className={styles.permGroups}>
+          </Field>
+          <Field label="Descripción">
+            <Input name="description" maxLength={300} defaultValue={role?.description ?? ""} placeholder="ej. Registra controles" />
+          </Field>
+        </FormGrid>
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
           {groups.map(([module, items]) => {
             const ids = items.map((p) => p.id);
-            const all = ids.every((id) => selected.has(id));
+            const count = ids.filter((id) => selected.has(id)).length;
+            const all = count === ids.length;
             return (
-              <div className={styles.permGroup} key={module}>
-                <h4>
-                  <input
-                    type="checkbox"
+              <div className="rounded-xl border p-4" key={module}>
+                <label className="mb-3 flex items-center gap-2.5 border-b pb-3">
+                  <Checkbox
                     checked={all}
+                    indeterminate={count > 0 && !all}
                     disabled={locked}
-                    onChange={(e) => toggle(ids.filter((id) => mine.includes(id)), e.target.checked)}
+                    onCheckedChange={(on) => toggle(ids.filter((id) => mine.includes(id)), on)}
                   />
-                  {moduleLabel(module)}
-                </h4>
-                {items.map((p) => (
-                  <label key={p.id}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(p.id)}
-                      disabled={locked || !mine.includes(p.id)}
-                      onChange={(e) => toggle([p.id], e.target.checked)}
-                    />
-                    <span>
-                      {p.description ?? p.code} <code>{p.code}</code>
-                    </span>
-                  </label>
-                ))}
+                  <span className="flex-1 text-sm font-semibold">{moduleLabel(module)}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {count}/{ids.length}
+                  </span>
+                </label>
+                <div className="space-y-2.5">
+                  {items.map((p) => {
+                    const disabled = locked || !mine.includes(p.id);
+                    return (
+                      <label key={p.id} className={cn("flex items-start gap-2.5 text-sm", disabled && "opacity-60")}>
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={selected.has(p.id)}
+                          disabled={disabled}
+                          onCheckedChange={(on) => toggle([p.id], on)}
+                        />
+                        <span className="min-w-0">
+                          {p.description ?? p.code}
+                          <code className="ml-1.5 rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-muted-foreground">{p.code}</code>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
         </div>
-        <div className={forms.actions}>
-          <span className={forms.hint} style={{ marginRight: "auto" }}>
-            {selected.size} permisos seleccionados
-          </span>
-          <button type="button" className={buttons.outline} onClick={onClose}>
+        <FormActions className="border-t pt-5">
+          <span className="mr-auto text-sm text-muted-foreground">{selected.size} permisos seleccionados</span>
+          <Button variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button className={buttons.primary} disabled={pending}>
+          </Button>
+          <Button type="submit" disabled={pending}>
             {pending ? "Guardando..." : role ? "Guardar cambios" : "Crear rol"}
-          </button>
-        </div>
+          </Button>
+        </FormActions>
       </form>
     </Modal>
   );
@@ -181,14 +190,14 @@ export function RolesPermissions() {
   return (
     <>
       <PageHeading
-        eyebrow="ADMINISTRACIÓN"
+        eyebrow="Administración"
         title="Roles y permisos"
         subtitle="Crea roles personalizados y define qué puede hacer cada usuario."
         action={
           can("role.post") && (
-            <button className={buttons.primary} onClick={() => setEditing("new")}>
-              <span>+</span> Crear rol
-            </button>
+            <Button size="lg" onClick={() => setEditing("new")}>
+              <Plus /> Crear rol
+            </Button>
           )
         }
       />
@@ -196,45 +205,68 @@ export function RolesPermissions() {
         <PanelHeading title="Roles del sistema" description="Configura permisos por nivel de acceso." />
         {error && <ErrorState error={error} onRetry={reload} />}
         {loading && !data && <LoadingState />}
-        <div className={styles.roles}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {data?.roles.map((role) => {
             const modules = [...new Set(role.permissions.map((c) => c.split(".")[0]))];
             return (
-              <div key={role.id} className={styles.roleCard}>
-                <div>
-                  <strong>
-                    {roleTitle(role.name)}
-                    {!role.is_active && <span className={cn(styles.badge, styles.off)} style={{ marginLeft: 8 }}>Inactivo</span>}
-                    {role.is_system && <span className={styles.badge} style={{ marginLeft: 8 }}>Sistema</span>}
-                  </strong>
-                  <span>
-                    {role.description ?? "Sin descripción"} · {role.user_count} usuario(s) · {role.permissions.length} permisos
+              <article
+                key={role.id}
+                className={cn("flex flex-col rounded-xl border p-5 transition-shadow hover:shadow-sm", !role.is_active && "bg-muted/40")}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+                    <ShieldCheck className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <strong className="text-base font-semibold">{roleTitle(role.name)}</strong>
+                      {!role.is_active && <Pill>Inactivo</Pill>}
+                      {role.is_system && <Pill tone="info">Sistema</Pill>}
+                    </div>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{role.description ?? "Sin descripción"}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="size-3.5" /> {role.user_count} usuario(s)
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5" /> {role.permissions.length} permisos
                   </span>
                 </div>
-                <div className={styles.rowActions}>
-                  {can("role.put") && (
-                    <button className={buttons.ghost} onClick={() => setEditing(role)}>
-                      <Pencil size={13} /> Editar
-                    </button>
-                  )}
-                  {can("role.put") && !role.is_active && (
-                    <button className={buttons.ghost} disabled={pending} onClick={() => reactivate(role)}>
-                      Reactivar
-                    </button>
-                  )}
-                  {can("role.delete") && !role.is_system && role.is_active && (
-                    <button className={cn(buttons.ghost, buttons.red)} disabled={pending} onClick={() => remove(role)}>
-                      <Trash size={13} /> Eliminar
-                    </button>
-                  )}
-                </div>
-                <div className={styles.modules}>
-                  {modules.length === 0 && <em>Sin permisos</em>}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {modules.length === 0 && <span className="text-xs text-muted-foreground italic">Sin permisos</span>}
                   {modules.map((m) => (
-                    <em key={m}>{moduleLabel(m)}</em>
+                    <Pill key={m} tone="primary" className="h-5 px-2 text-[11px]">
+                      {moduleLabel(m)}
+                    </Pill>
                   ))}
                 </div>
-              </div>
+                <div className="min-h-4 flex-1" />
+                <div className="flex flex-wrap gap-1 border-t pt-3 empty:hidden">
+                  {can("role.put") && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(role)}>
+                      <Pencil /> Editar
+                    </Button>
+                  )}
+                  {can("role.put") && !role.is_active && (
+                    <Button variant="ghost" size="sm" disabled={pending} onClick={() => reactivate(role)}>
+                      <RotateCcw /> Reactivar
+                    </Button>
+                  )}
+                  {can("role.delete") && !role.is_system && role.is_active && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={pending}
+                      onClick={() => remove(role)}
+                    >
+                      <Trash /> Eliminar
+                    </Button>
+                  )}
+                </div>
+              </article>
             );
           })}
         </div>

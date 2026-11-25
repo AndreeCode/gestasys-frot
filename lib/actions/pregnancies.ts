@@ -3,7 +3,9 @@
 import { backend, combine, id } from "@/lib/api/server";
 import type {
   ApiResult,
+  AuditLog,
   HealthFacility,
+  MinsaView,
   Page,
   Pregnancy,
   PregnancyFilters,
@@ -87,4 +89,27 @@ export async function updateControl(controlId: string, input: PrenatalControlInp
 
 export async function deleteControl(controlId: string) {
   return backend<null>(`/prenatal-controls/${id(controlId)}`, { method: "DELETE" });
+}
+
+/** Trazabilidad de una gestante: quién la registró o modificó, desde qué EE.SS., IP y dispositivo. */
+export async function loadPregnancyHistory(pregnancyId: string) {
+  return backend<AuditLog[]>(`/pregnancies/${id(pregnancyId)}/history`);
+}
+
+/** Vista en el formato de seguimiento de gestantes del MINSA (mismas columnas que el Excel). */
+export async function loadMinsaView(filters: PregnancyFilters, sections: string[] | null) {
+  const result = await backend<MinsaView>("/pregnancies/minsa", {
+    method: "POST",
+    body: { ...searchBody(filters), ...(sections ? { sections: sections.length ? sections : ["datos"] } : {}) },
+  });
+  if (!result.ok) return result;
+  return {
+    ...result,
+    data: {
+      ...result.data,
+      total: Number(result.meta?.total ?? result.data.rows.length),
+      limit: Number(result.meta?.limit ?? filters.limit ?? 25),
+      offset: Number(result.meta?.offset ?? 0),
+    },
+  };
 }
