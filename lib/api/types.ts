@@ -382,7 +382,15 @@ export type MinsaSection = { id: string; title: string; fixed?: boolean };
 
 export type MinsaView = {
   sections: MinsaSection[];
-  columns: { key: string; section: string; group: string; label: string }[];
+  columns: {
+    key: string;
+    section: string;
+    group: string;
+    label: string;
+    /** Colores del encabezado original: [sección, grupo, campo] (hex sin #). */
+    fills: (string | null)[];
+    editable: boolean;
+  }[];
   rows: string[][];
   fills: (string | null)[][];
   legend: { color: string; name: string | null }[];
@@ -391,4 +399,60 @@ export type MinsaView = {
   total: number;
   limit: number;
   offset: number;
+};
+
+export type MinsaRow = { id: string; code: string; keys: string[]; row: string[]; fills: (string | null)[] };
+
+export type ReportIndicator = {
+  id: string;
+  label: string;
+  detail: string;
+  value: number;
+  base: number;
+  percent: number | null;
+  /** true = mientras más bajo, mejor (inasistentes). */
+  inverse?: boolean;
+};
+
+export type ReportSummary = {
+  total: number;
+  with_controls: number;
+  active: number;
+  completed: number;
+  missed: number;
+  risk_high: number;
+  risk_medium: number;
+  risk_low: number;
+  status_pending: number;
+  status_followup: number;
+  age_teen: number;
+  age_adult: number;
+  age_older: number;
+  avg_controls: number;
+};
+
+export type ReportData = {
+  summary: ReportSummary;
+  indicators: ReportIndicator[];
+  by_facility: {
+    health_facility_id: string;
+    health_facility_name: string;
+    micro_network_name: string | null;
+    total: number;
+    active: number;
+    completed: number;
+    risk_high: number;
+    missed: number;
+    avg_controls: number;
+    early_capture: number | null;
+    six_apn: number | null;
+    completed_six_apn: number | null;
+  }[];
+  by_month: { month: string; registered: number; controls: number }[];
+  by_registrar: DashboardData["by_registrar"];
+  options: {
+    networks: { id: string; name: string }[];
+    facilities: { id: string; name: string; micro_network_id: string | null }[];
+  };
+  can_choose_network: boolean;
 };

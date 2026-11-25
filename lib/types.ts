@@ -1,5 +1,6 @@
 export type Section =
   | "Resumen"
+  | "Estadísticas"
   | "Registros"
   | "Importar datos"
   | "Red de salud"
@@ -13,6 +14,7 @@ export type Section =
 /** Permiso del backend que habilita cada sección; `null` = cualquier usuario con sesión. */
 export const SECTION_PERMISSION: Record<Section, string | null> = {
   Resumen: "dashboard.get",
+  Estadísticas: "report.get",
   Registros: "pregnancy.get",
   "Importar datos": "pregnancy.import",
   "Red de salud": "micro_network.get",

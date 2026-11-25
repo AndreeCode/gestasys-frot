@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   ClipboardList,
   DatabaseBackup,
   FileSpreadsheet,
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<Section, LucideIcon> = {
   Resumen: LayoutDashboard,
+  Estadísticas: BarChart3,
   Registros: ClipboardList,
   "Importar datos": FileSpreadsheet,
   "Registrar usuario": UserPlus,
@@ -102,7 +104,7 @@ export function Sidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl transition-transform duration-200 lg:w-64 lg:translate-x-0 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col print:hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl transition-transform duration-200 lg:w-64 lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -166,7 +168,7 @@ export function Sidebar({
 
 export function MobileMenuButton({ onClick }: { onClick: () => void }) {
   return (
-    <div className="sticky top-0 z-30 -mx-4 -mt-4 mb-5 flex items-center justify-between border-b bg-background px-4 py-3 sm:-mx-6 sm:px-6 lg:hidden">
+    <div className="sticky top-0 z-30 -mx-4 -mt-4 mb-5 flex print:hidden items-center justify-between border-b bg-background px-4 py-3 sm:-mx-6 sm:px-6 lg:hidden">
       <Brand />
       <button
         className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-medium shadow-xs hover:bg-muted"

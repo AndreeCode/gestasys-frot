@@ -5,6 +5,7 @@ import type {
   ApiResult,
   AuditLog,
   HealthFacility,
+  MinsaRow,
   MinsaView,
   Page,
   Pregnancy,
@@ -112,4 +113,9 @@ export async function loadMinsaView(filters: PregnancyFilters, sections: string[
       offset: Number(result.meta?.offset ?? 0),
     },
   };
+}
+
+/** Guarda las celdas editadas de una gestante en la vista MINSA; devuelve la fila recalculada. */
+export async function updateMinsaCells(pregnancyId: string, cells: Record<string, string>) {
+  return backend<MinsaRow>(`/pregnancies/${id(pregnancyId)}/minsa`, { method: "PUT", body: { cells } });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronRight, Download, FileSpreadsheet, List, Plus, Search, Table2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronRight, Download, FileSpreadsheet, List, Pencil, Plus, Save, Search, Table2, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { RiskBadge, StatusBadge } from "@/components/common/badges";
 import { EmptyState, ErrorState, LoadingState, Pagination } from "@/components/common/feedback";
@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useNotify } from "@/components/common/toast";
 import { useBackendQuery } from "@/hooks/use-backend";
-import { loadMinsaView, loadRecords } from "@/lib/actions/pregnancies";
-import type { PregnancyFilters, PregnancyStatus } from "@/lib/api/types";
+import { loadMinsaView, loadRecords, updateMinsaCells } from "@/lib/actions/pregnancies";
+import type { MinsaRow, MinsaView, PregnancyFilters, PregnancyStatus } from "@/lib/api/types";
 import { RISK_LABELS, STATUS_LABELS, formatDate, formatDateTime, gestationalAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ColorLegend, MinsaSheet, SectionPicker } from "./minsa-sheet";
+import { ColorLegend, MinsaSheet, SectionPicker, type Drafts } from "./minsa-sheet";
 import { ColorMark } from "@/components/common/color-mark";
 import { RecordDetail } from "./record-detail";
 import { RecordForm } from "./record-form";
@@ -32,6 +33,8 @@ function MinsaPanel({
   onMark,
   onOpen,
   canExport,
+  canEdit,
+  onSaved,
   exportFields,
 }: {
   filters: PregnancyFilters;
@@ -40,13 +43,86 @@ function MinsaPanel({
   onMark: (mark: string | undefined) => void;
   onOpen: (id: string) => void;
   canExport: boolean;
+  canEdit: boolean;
+  onSaved: () => void;
   exportFields: Record<string, string | undefined>;
 }) {
+  const notify = useNotify();
   const [offset, setOffset] = useState(0);
   const [binary, setBinary] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Drafts>({});
+  const [saved, setSaved] = useState<Record<string, MinsaRow>>({});
+  const [saving, setSaving] = useState(false);
   const query = { ...filters, limit: LIMIT, offset };
   const key = JSON.stringify([query, sections]);
-  const { data, error, loading, reload } = useBackendQuery(`minsa:${key}`, () => loadMinsaView(query, sections));
+  const { data: loaded, error, loading, reload } = useBackendQuery(`minsa:${key}`, () => loadMinsaView(query, sections));
+
+  /** Aplica las filas ya guardadas (el back las devuelve recalculadas) sobre la página cargada. */
+  const data = useMemo<MinsaView | null>(() => {
+    if (!loaded) return null;
+    const keys = loaded.columns.map((c) => c.key);
+    return {
+      ...loaded,
+      rows: loaded.rows.map((row, r) => {
+        const fresh = saved[loaded.ids[r]];
+        return fresh ? keys.map((k, i) => (k === "n" ? row[i] : (fresh.row[fresh.keys.indexOf(k)] ?? ""))) : row;
+      }),
+      fills: loaded.fills.map((fill, r) => {
+        const fresh = saved[loaded.ids[r]];
+        return fresh ? keys.map((k) => fresh.fills[fresh.keys.indexOf(k)] ?? null) : fill;
+      }),
+    };
+  }, [loaded, saved]);
+
+  const pending = Object.values(drafts).reduce((n, cells) => n + Object.keys(cells).length, 0);
+
+  function setDraft(rowId: string, cellKey: string, value: string | null) {
+    setDrafts((current) => {
+      const row = { ...(current[rowId] ?? {}) };
+      if (value === null) delete row[cellKey];
+      else row[cellKey] = value;
+      const next = { ...current, [rowId]: row };
+      if (Object.keys(row).length === 0) delete next[rowId];
+      return next;
+    });
+  }
+
+  function guard(action: () => void) {
+    if (pending && !window.confirm(`Tienes ${pending} celdas sin guardar. ¿Descartarlas?`)) return;
+    setDrafts({});
+    action();
+  }
+
+  async function save() {
+    if (!data) return;
+    setSaving(true);
+    let ok = 0;
+    for (const [rowId, cells] of Object.entries(drafts)) {
+      const code = data.codes[data.ids.indexOf(rowId)] ?? "";
+      const result = await updateMinsaCells(rowId, cells);
+      if (!result.ok) {
+        if (result.status === 401) {
+          window.location.replace("/session-expired");
+          return;
+        }
+        notify(`${code}: ${result.error}`, "danger");
+        continue;
+      }
+      ok += 1;
+      setSaved((current) => ({ ...current, [rowId]: result.data }));
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[rowId];
+        return next;
+      });
+    }
+    setSaving(false);
+    if (ok) {
+      notify(`${ok} ${ok === 1 ? "registro actualizado" : "registros actualizados"}`);
+      onSaved();
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -55,10 +131,12 @@ function MinsaPanel({
           <SectionPicker
             sections={data.sections}
             value={sections}
-            onChange={(value) => {
-              onSections(value);
-              setOffset(0);
-            }}
+            onChange={(value) =>
+              guard(() => {
+                onSections(value);
+                setOffset(0);
+              })
+            }
           />
         ) : (
           <span className="text-xs text-muted-foreground">Cargando secciones...</span>
@@ -81,11 +159,36 @@ function MinsaPanel({
           <ColorLegend
             legend={data.legend}
             value={filters.mark}
-            onChange={(mark) => {
-              onMark(mark);
-              setOffset(0);
-            }}
+            onChange={(mark) =>
+              guard(() => {
+                onMark(mark);
+                setOffset(0);
+              })
+            }
           />
+          <div className="flex flex-wrap items-center gap-2">
+            {canEdit && !editing && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setBinary(false);
+                  setEditing(true);
+                }}
+              >
+                <Pencil /> Editar celdas
+              </Button>
+            )}
+            {editing && (
+              <>
+                <Button size="sm" disabled={!pending || saving} onClick={save}>
+                  <Save /> {saving ? "Guardando..." : `Guardar${pending ? ` (${pending})` : ""}`}
+                </Button>
+                <Button size="sm" variant="ghost" disabled={saving} onClick={() => guard(() => setEditing(false))}>
+                  <Undo2 /> {pending ? "Descartar" : "Terminar"}
+                </Button>
+              </>
+            )}
           <div className="inline-flex rounded-lg border bg-card p-0.5 text-xs" role="radiogroup" aria-label="Mostrar celdas">
             {[
               [false, "Valores"],
@@ -95,6 +198,7 @@ function MinsaPanel({
                 key={String(label)}
                 role="radio"
                 aria-checked={binary === value}
+                disabled={editing}
                 onClick={() => setBinary(value as boolean)}
                 className={cn(
                   "h-7 rounded-md px-2.5 font-medium",
@@ -105,11 +209,32 @@ function MinsaPanel({
               </button>
             ))}
           </div>
+          </div>
         </div>
       )}
+      {editing && (
+        <p className="rounded-lg border border-primary/25 bg-accent/50 px-3 py-2 text-xs text-accent-foreground">
+          Clic en una celda para escribir · <b>Enter</b> baja · <b>Tab</b> avanza · <b>Esc</b> cancela. Fechas como
+          DD/MM/AAAA. Borrar la fecha de una APN elimina ese control. Las columnas atenuadas (EE.SS., microred, RENAES, edad) se
+          cambian desde la ficha.
+        </p>
+      )}
       {error && <ErrorState error={error} onRetry={reload} />}
-      {loading && !data ? <LoadingState /> : data ? <MinsaSheet view={data} onOpen={onOpen} binary={binary} /> : null}
-      {data && <Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={setOffset} />}
+      {loading && !data ? (
+        <LoadingState />
+      ) : data ? (
+        <MinsaSheet
+          view={data}
+          onOpen={onOpen}
+          binary={binary && !editing}
+          editing={editing}
+          drafts={drafts}
+          onDraft={setDraft}
+        />
+      ) : null}
+      {data && (
+        <Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={(next) => guard(() => setOffset(next))} />
+      )}
     </div>
   );
 }
@@ -295,6 +420,8 @@ export function Records() {
             onMark={(mark) => update({ mark })}
             onOpen={setSelected}
             canExport={can("pregnancy.export")}
+            canEdit={can("pregnancy.put")}
+            onSaved={reload}
             exportFields={exportFields}
           />
         ) : null}

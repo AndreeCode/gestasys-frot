@@ -12,6 +12,7 @@ import { SECTION_PERMISSION, type Section } from "@/lib/types";
 import { AuditLogView } from "./audit";
 import { Backups } from "./backups";
 import { Networks } from "./networks";
+import { Reports } from "./reports";
 import { ForceMfaSetup } from "./account-security";
 import { ForcePasswordChange, Settings } from "./settings";
 import { ImportExport } from "./import-export";
@@ -24,6 +25,7 @@ import { UsersPanel } from "./users-panel";
 
 const ORDER: Section[] = [
   "Resumen",
+  "Estadísticas",
   "Registros",
   "Importar datos",
   "Red de salud",
@@ -127,6 +129,8 @@ function DashboardContent() {
           <UsersPanel onRegister={sections.includes("Registrar usuario") ? () => setChosen("Registrar usuario") : undefined} />
         ) : section === "Roles y permisos" ? (
           <RolesPermissions />
+        ) : section === "Estadísticas" ? (
+          <Reports />
         ) : section === "Red de salud" ? (
           <Networks />
         ) : section === "Auditoría" ? (
