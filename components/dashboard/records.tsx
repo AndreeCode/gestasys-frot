@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Download, FileSpreadsheet, List, Pencil, Plus, Save, Search, Table2, Undo2 } from "lucide-react";
+import { ChevronRight, Download, FileSpreadsheet, List, Pencil, Plus, Save, Search, SlidersHorizontal, Table2, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { RiskBadge, StatusBadge } from "@/components/common/badges";
@@ -247,6 +247,7 @@ export function Records() {
   const [creating, setCreating] = useState(false);
   const [mode, setMode] = useState<"list" | "minsa">("list");
   const [sections, setSections] = useState<string[] | null>(null);
+  const [moreFilters, setMoreFilters] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -258,16 +259,27 @@ export function Records() {
   const { data, error, loading, reload } = useBackendQuery(JSON.stringify(filters), () => loadRecords(filters));
   const update = (patch: PregnancyFilters) => setFilters((f) => ({ ...f, ...patch, offset: 0 }));
   const scope = profile.health_facility_id;
-  const facilities = (data?.facilities ?? []).filter((f) => !scope || f.id === scope);
+  const facilities = (data?.facilities ?? []).filter(
+    (f) => (!scope || f.id === scope) && (!filters.micro_network_id || f.micro_network_id === filters.micro_network_id),
+  );
+  const networks = data?.networks ?? [];
   const page = data?.page;
 
-  const exportFields = {
-    q: filters.q,
-    health_facility_id: filters.health_facility_id,
-    status: filters.status,
-    risk_level: filters.risk_level,
-    mark: filters.mark,
-  };
+  const { limit: _limit, offset: _offset, ...active } = filters;
+  void _limit;
+  void _offset;
+  const exportFields = Object.fromEntries(
+    Object.entries(active).map(([k, v]) => [k, v === undefined || v === "" ? undefined : String(v)]),
+  ) as Record<string, string | undefined>;
+  const activeCount = Object.values(exportFields).filter(Boolean).length;
+  const extraCount = ["micro_network_id", "age_group", "insurance", "controls", "missed", "due_from", "due_to", "created_from", "created_to"].filter(
+    (k) => exportFields[k],
+  ).length;
+
+  function clearFilters() {
+    setSearch("");
+    setFilters({ limit: LIMIT, offset: 0 });
+  }
 
   return (
     <>
@@ -345,7 +357,7 @@ export function Records() {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Buscar registros"
-              placeholder="Buscar por nombre, DNI o código..."
+              placeholder="Buscar por nombre, DNI, código, historia clínica o celular..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="pl-9"
@@ -405,16 +417,102 @@ export function Records() {
               </NativeSelectOption>
             )}
           </NativeSelect>
+          <Button variant={moreFilters || extraCount ? "secondary" : "outline"} onClick={() => setMoreFilters((v) => !v)}>
+            <SlidersHorizontal /> Más filtros{extraCount ? ` (${extraCount})` : ""}
+          </Button>
         </div>
+        {moreFilters && (
+          <div className="mb-4 grid gap-3 rounded-lg border bg-muted/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
+            {networks.length > 1 && (
+              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                Microred
+                <NativeSelect
+                  className="w-full"
+                  value={filters.micro_network_id ?? ""}
+                  onChange={(e) => update({ micro_network_id: e.target.value || undefined, health_facility_id: undefined })}
+                >
+                  <NativeSelectOption value="">Todas</NativeSelectOption>
+                  {networks.map((n) => (
+                    <NativeSelectOption key={n.id} value={n.id}>
+                      {n.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </label>
+            )}
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Edad
+              <NativeSelect
+                className="w-full"
+                value={filters.age_group ?? ""}
+                onChange={(e) => update({ age_group: (e.target.value || undefined) as PregnancyFilters["age_group"] })}
+              >
+                <NativeSelectOption value="">Todas</NativeSelectOption>
+                <NativeSelectOption value="teen">Adolescente (&lt; 18)</NativeSelectOption>
+                <NativeSelectOption value="adult">18 a 35 años</NativeSelectOption>
+                <NativeSelectOption value="older">Mayor de 35</NativeSelectOption>
+              </NativeSelect>
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Atenciones prenatales
+              <NativeSelect
+                className="w-full"
+                value={filters.controls ?? ""}
+                onChange={(e) => update({ controls: (e.target.value || undefined) as PregnancyFilters["controls"] })}
+              >
+                <NativeSelectOption value="">Cualquier cantidad</NativeSelectOption>
+                <NativeSelectOption value="none">Sin APN</NativeSelectOption>
+                <NativeSelectOption value="lt6">1 a 5 APN</NativeSelectOption>
+                <NativeSelectOption value="gte6">6 o más APN</NativeSelectOption>
+              </NativeSelect>
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Seguro
+              <NativeSelect className="w-full" value={filters.insurance ?? ""} onChange={(e) => update({ insurance: e.target.value || undefined })}>
+                <NativeSelectOption value="">Todos</NativeSelectOption>
+                <NativeSelectOption value="SIS">SIS</NativeSelectOption>
+                <NativeSelectOption value="ESSALUD">EsSalud</NativeSelectOption>
+                <NativeSelectOption value="Otro">Otro</NativeSelectOption>
+              </NativeSelect>
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              FPP desde
+              <Input type="date" value={filters.due_from ?? ""} onChange={(e) => update({ due_from: e.target.value || undefined })} />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              FPP hasta
+              <Input type="date" value={filters.due_to ?? ""} onChange={(e) => update({ due_to: e.target.value || undefined })} />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Registrada desde
+              <Input type="date" value={filters.created_from ?? ""} onChange={(e) => update({ created_from: e.target.value || undefined })} />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Registrada hasta
+              <Input type="date" value={filters.created_to ?? ""} onChange={(e) => update({ created_to: e.target.value || undefined })} />
+            </label>
+            <label className="flex items-center gap-2 text-sm sm:col-span-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-primary"
+                checked={Boolean(filters.missed)}
+                onChange={(e) => update({ missed: e.target.checked || undefined })}
+              />
+              Solo inasistentes (cita vencida sin control posterior)
+            </label>
+          </div>
+        )}
+        {activeCount > 0 && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+            {activeCount} {activeCount === 1 ? "filtro activo" : "filtros activos"}
+            <button className="inline-flex items-center gap-1 font-medium text-primary hover:underline" onClick={clearFilters}>
+              <X className="size-3" /> Limpiar todo
+            </button>
+          </div>
+        )}
         {mode === "minsa" ? (
           <MinsaPanel
-            filters={{
-              q: filters.q,
-              health_facility_id: filters.health_facility_id,
-              status: filters.status,
-              risk_level: filters.risk_level,
-              mark: filters.mark,
-            }}
+            filters={active}
             sections={sections}
             onSections={setSections}
             onMark={(mark) => update({ mark })}

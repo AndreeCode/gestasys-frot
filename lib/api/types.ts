@@ -169,6 +169,15 @@ export type PregnancyFilters = {
   risk_level?: RiskLevel | "";
   /** "any" = filas pintadas (1), "none" = sin color (0), o un color hex. */
   mark?: string;
+  micro_network_id?: string;
+  age_group?: "teen" | "adult" | "older" | "";
+  insurance?: string;
+  controls?: "none" | "lt6" | "gte6" | "";
+  missed?: boolean;
+  due_from?: string;
+  due_to?: string;
+  created_from?: string;
+  created_to?: string;
   limit?: number;
   offset?: number;
 };
@@ -455,4 +464,18 @@ export type ReportData = {
     facilities: { id: string; name: string; micro_network_id: string | null }[];
   };
   can_choose_network: boolean;
+};
+
+export type TemplateColumn = {
+  key: string | null;
+  kind: "id" | "fixed" | "apn" | "clinical" | "custom";
+  position?: number;
+  section: string;
+  group: string;
+  label: string;
+  width: number;
+  visible: boolean;
+  fills: (string | null)[];
+  aliases: string[];
+  builtin: boolean;
 };

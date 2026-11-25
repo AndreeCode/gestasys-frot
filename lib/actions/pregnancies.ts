@@ -1,6 +1,6 @@
 "use server";
 
-import { backend, combine, id } from "@/lib/api/server";
+import { backend, combine, id, orEmpty } from "@/lib/api/server";
 import type {
   ApiResult,
   AuditLog,
@@ -41,12 +41,13 @@ async function pregnancyPage(filters: PregnancyFilters): Promise<ApiResult<Page<
 }
 
 export async function loadRecords(filters: PregnancyFilters) {
-  const [page, stats, facilities] = await Promise.all([
+  const [page, stats, facilities, networks] = await Promise.all([
     pregnancyPage(filters),
     backend<Stats>("/pregnancies/stats"),
     backend<HealthFacility[]>("/health-facilities", { query: { active: true } }),
+    backend<{ id: string; name: string }[]>("/micro-networks", { query: { active: true } }),
   ]);
-  return combine({ page, stats, facilities });
+  return combine({ page, stats, facilities, networks: orEmpty(networks) });
 }
 
 export async function loadStats() {

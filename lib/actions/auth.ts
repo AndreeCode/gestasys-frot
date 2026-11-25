@@ -90,6 +90,16 @@ export async function meAction() {
   return backend<Profile>("/auth/me");
 }
 
+/** Datos propios (nombre, correo, teléfono); cambiar el correo pide la contraseña actual. */
+export async function updateProfileAction(input: {
+  full_name?: string;
+  email?: string;
+  phone?: string | null;
+  current_password?: string;
+}) {
+  return backend<Profile>("/auth/me", { method: "PUT", body: input });
+}
+
 export async function changePasswordAction(currentPassword: string, newPassword: string) {
   return backend<null>("/auth/password", {
     method: "PUT",
