@@ -120,3 +120,11 @@ export async function loadMinsaView(filters: PregnancyFilters, sections: string[
 export async function updateMinsaCells(pregnancyId: string, cells: Record<string, string>) {
   return backend<MinsaRow>(`/pregnancies/${id(pregnancyId)}/minsa`, { method: "PUT", body: { cells } });
 }
+
+/** Registro nuevo con las columnas del formato MINSA (datos, APN y ficha). */
+export async function createMinsaPregnancy(cells: Record<string, string>, healthFacilityId?: string) {
+  return backend<MinsaRow>("/pregnancies/minsa/new", {
+    method: "POST",
+    body: { cells, ...(healthFacilityId ? { health_facility_id: healthFacilityId } : {}) },
+  });
+}

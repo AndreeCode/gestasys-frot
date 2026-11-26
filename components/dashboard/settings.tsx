@@ -12,7 +12,7 @@ import { AuthLayout } from "@/components/login/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBackendAction } from "@/hooks/use-backend";
-import { changePasswordAction } from "@/lib/actions/auth";
+import { changePasswordAction, updateProfileAction } from "@/lib/actions/auth";
 import type { Profile } from "@/lib/api/types";
 import { formatDateTime, roleTitle } from "@/lib/format";
 import { MfaPanel, SessionsPanel } from "./account-security";
@@ -85,6 +85,54 @@ function PasswordForm({ onDone, compact }: { onDone: () => void; compact?: boole
   );
 }
 
+function ProfileForm({ profile, onDone }: { profile: Profile; onDone: () => void }) {
+  const { run, pending } = useBackendAction();
+  const [email, setEmail] = useState(profile.email);
+  const emailChanged = email.trim().toLowerCase() !== profile.email;
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const value = (k: string) => String(form.get(k) ?? "").trim();
+    const input: Parameters<typeof updateProfileAction>[0] = {};
+    if (value("full_name") !== profile.full_name) input.full_name = value("full_name");
+    if ((value("phone") || null) !== profile.phone) input.phone = value("phone") || null;
+    if (emailChanged) {
+      input.email = value("email");
+      input.current_password = String(form.get("current_password") ?? "");
+    }
+    if (Object.keys(input).length === 0) return;
+    if (await run(updateProfileAction(input))) onDone();
+  }
+
+  return (
+    <form onSubmit={onSubmit}>
+      <FormGrid>
+        <Field label="Nombre completo">
+          <Input name="full_name" required minLength={3} maxLength={200} defaultValue={profile.full_name} />
+        </Field>
+        <Field label="Teléfono">
+          <Input name="phone" maxLength={30} defaultValue={profile.phone ?? ""} />
+        </Field>
+        <Field label="Correo">
+          <Input name="email" type="email" required maxLength={255} value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        {emailChanged && (
+          <Field label="Contraseña actual" hint="(para cambiar el correo)">
+            <Input name="current_password" type="password" required autoComplete="current-password" />
+          </Field>
+        )}
+      </FormGrid>
+      <Hint className="mt-4">El usuario, el rol y el ámbito los cambia un administrador.</Hint>
+      <FormActions className="justify-start">
+        <Button type="submit" disabled={pending}>
+          <UserRound /> {pending ? "Guardando..." : "Guardar mis datos"}
+        </Button>
+      </FormActions>
+    </form>
+  );
+}
+
 export function Settings() {
   const { profile, reloadProfile } = useSession();
   return (
@@ -106,9 +154,15 @@ export function Settings() {
         </Panel>
         <div className="grid gap-6 xl:grid-cols-2">
           <Panel>
+            <PanelHeading title="Mis datos" description="Nombre, correo y teléfono" icon={<UserRound className="size-[18px]" />} />
+            <ProfileForm key={profile.updated_at} profile={profile} onDone={reloadProfile} />
+          </Panel>
+          <Panel>
             <PanelHeading title="Cambiar contraseña" icon={<KeyRound className="size-[18px]" />} />
             <PasswordForm onDone={reloadProfile} />
           </Panel>
+        </div>
+        <div className="grid gap-6 xl:grid-cols-2">
           <Panel>
             <PanelHeading
               title="Verificación en dos pasos"
@@ -117,15 +171,15 @@ export function Settings() {
             />
             <MfaPanel onChanged={reloadProfile} />
           </Panel>
+          <Panel>
+            <PanelHeading
+              title="Mis sesiones"
+              description="Si ves una sesión que no reconoces, ciérrala y cambia tu contraseña. Se cierran solas tras 30 minutos sin actividad."
+              icon={<MonitorSmartphone className="size-[18px]" />}
+            />
+            <SessionsPanel />
+          </Panel>
         </div>
-        <Panel>
-          <PanelHeading
-            title="Mis sesiones"
-            description="Si ves una sesión que no reconoces, ciérrala y cambia tu contraseña. Las sesiones se cierran solas tras 30 minutos sin actividad."
-            icon={<MonitorSmartphone className="size-[18px]" />}
-          />
-          <SessionsPanel />
-        </Panel>
       </div>
     </>
   );

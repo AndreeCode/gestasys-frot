@@ -13,6 +13,7 @@ import { AuditLogView } from "./audit";
 import { Backups } from "./backups";
 import { Networks } from "./networks";
 import { Reports } from "./reports";
+import { MinsaFormat } from "./minsa-format";
 import { ForceMfaSetup } from "./account-security";
 import { ForcePasswordChange, Settings } from "./settings";
 import { ImportExport } from "./import-export";
@@ -33,6 +34,7 @@ const ORDER: Section[] = [
   "Registrar usuario",
   "Roles y permisos",
   "Auditoría",
+  "Formato MINSA",
   "Backups",
 ];
 
@@ -133,6 +135,8 @@ function DashboardContent() {
           <Reports />
         ) : section === "Red de salud" ? (
           <Networks />
+        ) : section === "Formato MINSA" ? (
+          <MinsaFormat />
         ) : section === "Auditoría" ? (
           <AuditLogView />
         ) : section === "Backups" ? (

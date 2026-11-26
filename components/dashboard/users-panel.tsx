@@ -1,11 +1,11 @@
 "use client";
 
-import { Building2, KeyRound, Lock, LockOpen, Search, ShieldOff, UserCheck, UserCog, UserPlus, UserX } from "lucide-react";
+import { Lock, LockOpen, Search, ShieldOff, UserCheck, UserCog, UserPlus } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 
 import { Pill } from "@/components/common/badges";
 import { EmptyState, ErrorState, LoadingState, Pagination } from "@/components/common/feedback";
-import { Field, FormActions } from "@/components/common/form";
+import { Field, FormActions, FormGrid } from "@/components/common/form";
 import { Modal } from "@/components/common/modal";
 import { PageHeading } from "@/components/common/page-heading";
 import { Panel, PanelHeading } from "@/components/common/panel";
@@ -13,14 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
 import { useBackendAction, useBackendQuery } from "@/hooks/use-backend";
-import { deleteUser, loadUsers, resetUserMfa, updateUser } from "@/lib/actions/users";
+import { loadUsers, resetUserMfa, updateUser } from "@/lib/actions/users";
 import type { HealthFacility, MicroNetwork, User } from "@/lib/api/types";
 import { avatarColor, formatDateTime, initials, roleTitle, scopeLabel } from "@/lib/format";
 import { useSession } from "./session";
 
 type Dialog = { kind: "block" | "password" | "role" | "facility"; user: User } | null;
 
-const danger = "text-destructive hover:bg-destructive/10 hover:text-destructive";
 const PAGE = 15;
 
 /** Valor del selector de ámbito: "" = toda la red, "mn:<id>" = microred, "hf:<id>" = establecimiento. */
@@ -78,6 +77,7 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
   const [status, setStatus] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [editing, setEditing] = useState<User | null>(null);
 
   const users = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -104,10 +104,6 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
     if (await run(resetUserMfa(user.id))) reload();
   }
 
-  async function deactivate(user: User) {
-    if (!window.confirm(`¿Desactivar la cuenta de ${user.full_name}? Se cerrarán sus sesiones.`)) return;
-    if (await run(deleteUser(user.id))) reload();
-  }
 
   async function onDialogSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,52 +243,21 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
                     )}
                   </div>
                   {can("user.put") && !self ? (
-                    <div className="flex flex-wrap gap-0.5 lg:justify-end">
-                      <Button variant="ghost" size="icon-sm" title="Cambiar rol" onClick={() => setDialog({ kind: "role", user })}>
-                        <UserCog />
+                    <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                      <Button variant="outline" size="sm" onClick={() => setEditing(user)}>
+                        <UserCog /> Editar
                       </Button>
-                      {canMoveFacility && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Cambiar microred o establecimiento"
-                          onClick={() => setDialog({ kind: "facility", user })}
-                        >
-                          <Building2 />
+                      {!user.active ? (
+                        <Button variant="outline" size="sm" disabled={pending} onClick={() => save(user, { active: true, blocked: false })}>
+                          <UserCheck /> Dar acceso
                         </Button>
-                      )}
-                      <Button variant="ghost" size="icon-sm" title="Resetear contraseña" onClick={() => setDialog({ kind: "password", user })}>
-                        <KeyRound />
-                      </Button>
-                      {user.mfa_enabled && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Restablecer verificación en dos pasos"
-                          disabled={pending}
-                          onClick={() => resetMfa(user)}
-                        >
-                          <ShieldOff />
-                        </Button>
-                      )}
-                      {user.blocked ? (
-                        <Button variant="ghost" size="icon-sm" title="Desbloquear" disabled={pending} onClick={() => save(user, { blocked: false })}>
-                          <LockOpen />
+                      ) : user.blocked ? (
+                        <Button variant="outline" size="sm" disabled={pending} onClick={() => save(user, { blocked: false })}>
+                          <LockOpen /> Dar acceso
                         </Button>
                       ) : (
-                        <Button variant="ghost" size="icon-sm" title="Bloquear" className={danger} onClick={() => setDialog({ kind: "block", user })}>
-                          <Lock />
-                        </Button>
-                      )}
-                      {user.active ? (
-                        can("user.delete") && (
-                          <Button variant="ghost" size="icon-sm" title="Desactivar" className={danger} disabled={pending} onClick={() => deactivate(user)}>
-                            <UserX />
-                          </Button>
-                        )
-                      ) : (
-                        <Button variant="ghost" size="icon-sm" title="Reactivar" disabled={pending} onClick={() => save(user, { active: true })}>
-                          <UserCheck />
+                        <Button variant="destructive" size="sm" onClick={() => setDialog({ kind: "block", user })}>
+                          <Lock /> Cortar acceso
                         </Button>
                       )}
                     </div>
@@ -307,11 +272,29 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
         <Pagination total={users.length} limit={PAGE} offset={offset} onChange={(next) => setPage(Math.floor(next / PAGE))} />
       </Panel>
 
+      {editing && data && (
+        <UserEditDialog
+          user={editing}
+          roles={data.roles}
+          networks={data.networks}
+          facilities={data.facilities}
+          allowNetwork={profile.scope_level === "network"}
+          canMoveScope={canMoveFacility}
+          canDelete={can("user.delete")}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            reload();
+          }}
+          onResetMfa={() => resetMfa(editing)}
+        />
+      )}
+
       {dialog && (
         <Modal
           title={
             dialog.kind === "block"
-              ? `Bloquear a ${dialog.user.full_name}`
+              ? `Cortar acceso a ${dialog.user.full_name}`
               : dialog.kind === "password"
                 ? `Resetear contraseña de ${dialog.user.full_name}`
                 : dialog.kind === "facility"
@@ -320,7 +303,7 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
           }
           description={
             dialog.kind === "block"
-              ? "Se cerrarán todas sus sesiones y no podrá ingresar hasta que la desbloquees."
+              ? "Se cerrarán todas sus sesiones al instante y no podrá ingresar hasta que le des acceso de nuevo."
               : dialog.kind === "password"
                 ? "Se cerrarán sus sesiones y deberá cambiar esta contraseña temporal al ingresar."
                 : dialog.kind === "facility"
@@ -331,7 +314,7 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
         >
           <form onSubmit={onDialogSubmit}>
             {dialog.kind === "block" && (
-              <Field label="Motivo del bloqueo *">
+              <Field label="Motivo *">
                 <Input name="reason" required maxLength={300} autoFocus />
               </Field>
             )}
@@ -377,5 +360,125 @@ export function UsersPanel({ onRegister }: { onRegister?: () => void }) {
         </Modal>
       )}
     </>
+  );
+}
+
+
+function UserEditDialog({
+  user,
+  roles,
+  networks,
+  facilities,
+  allowNetwork,
+  canMoveScope,
+  canDelete,
+  onClose,
+  onSaved,
+  onResetMfa,
+}: {
+  user: User;
+  roles: { id: string; name: string; description: string | null }[];
+  networks: MicroNetwork[];
+  facilities: HealthFacility[];
+  allowNetwork: boolean;
+  canMoveScope: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  onResetMfa: () => void;
+}) {
+  const { run, pending } = useBackendAction();
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const value = (key: string) => String(form.get(key) ?? "").trim();
+    const input: Parameters<typeof updateUser>[1] = {};
+    if (value("full_name") !== user.full_name) input.full_name = value("full_name");
+    if (value("email").toLowerCase() !== user.email) input.email = value("email");
+    if (value("username").toLowerCase() !== user.username) input.username = value("username");
+    if ((value("dni") || null) !== user.dni) input.dni = value("dni") || null;
+    if ((value("phone") || null) !== user.phone) input.phone = value("phone") || null;
+    if (value("role_id") !== user.role_id) input.role_id = value("role_id");
+    if (canMoveScope && value("scope") !== scopeValue(user)) Object.assign(input, parseScope(value("scope")));
+    const active = form.get("active") === "on";
+    if (active !== user.active) input.active = active;
+    if (value("password")) input.password = String(form.get("password"));
+    if (Object.keys(input).length === 0) {
+      onClose();
+      return;
+    }
+    const text = input.password ? "Usuario actualizado: deberá cambiar la contraseña temporal al ingresar" : undefined;
+    if (await run(updateUser(user.id, input), text)) onSaved();
+  }
+
+  return (
+    <Modal title={`Editar a ${user.full_name}`} description={`${roleTitle(user.role)} · ${scopeLabel(user)}`} onClose={onClose} wide>
+      <form onSubmit={onSubmit} className="space-y-6">
+        <FormGrid>
+          <Field label="Nombre completo *">
+            <Input name="full_name" required maxLength={200} defaultValue={user.full_name} />
+          </Field>
+          <Field label="Correo *">
+            <Input name="email" type="email" required maxLength={255} defaultValue={user.email} />
+          </Field>
+          <Field label="Usuario *">
+            <Input name="username" required maxLength={100} pattern="\S+" title="Sin espacios" defaultValue={user.username} />
+          </Field>
+          <Field label="DNI">
+            <Input name="dni" inputMode="numeric" pattern="[0-9]{8}" title="8 dígitos" maxLength={8} defaultValue={user.dni ?? ""} />
+          </Field>
+          <Field label="Teléfono">
+            <Input name="phone" maxLength={30} defaultValue={user.phone ?? ""} />
+          </Field>
+          <Field label="Rol *">
+            <NativeSelect className="w-full" name="role_id" required defaultValue={user.role_id}>
+              {!roles.some((r) => r.id === user.role_id) && <NativeSelectOption value={user.role_id}>{roleTitle(user.role)}</NativeSelectOption>}
+              {roles.map((r) => (
+                <NativeSelectOption key={r.id} value={r.id}>
+                  {roleTitle(r.name)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </Field>
+          {canMoveScope && (
+            <Field label="Microred o establecimiento" className="sm:col-span-2">
+              <NativeSelect className="w-full" name="scope" defaultValue={scopeValue(user)}>
+                <ScopeOptions networks={networks} facilities={facilities} allowNetwork={allowNetwork} />
+              </NativeSelect>
+            </Field>
+          )}
+        </FormGrid>
+
+        <fieldset className="space-y-3 rounded-xl border p-4">
+          <legend className="px-1 text-sm font-semibold">Acceso y seguridad</legend>
+          <Field label="Nueva contraseña temporal" hint="(déjala vacía para no cambiarla)">
+            <Input name="password" type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Mínimo 8 caracteres" />
+          </Field>
+          <p className="text-xs text-muted-foreground">Al cambiarla se cierran sus sesiones y deberá crear una propia al ingresar.</p>
+          {canDelete && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="active" defaultChecked={user.active} className="size-4 accent-primary" />
+              Cuenta activa (desmárcala para darla de baja)
+            </label>
+          )}
+          {!canDelete && <input type="hidden" name="active" value={user.active ? "on" : ""} />}
+          {user.mfa_enabled && (
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onResetMfa}>
+              <ShieldOff /> Restablecer verificación en dos pasos
+            </Button>
+          )}
+        </fieldset>
+
+        <FormActions className="mt-0 border-t pt-5">
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        </FormActions>
+      </form>
+    </Modal>
   );
 }

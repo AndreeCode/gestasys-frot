@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { ColorLegend, MinsaSheet, SectionPicker, type Drafts } from "./minsa-sheet";
 import { ColorMark } from "@/components/common/color-mark";
 import { RecordDetail } from "./record-detail";
+import { MinsaRecordForm } from "./minsa-record-form";
 import { RecordForm } from "./record-form";
 import { RecordStats } from "./record-stats";
 import { useSession } from "./session";
@@ -244,7 +245,7 @@ export function Records() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<PregnancyFilters>({ limit: LIMIT, offset: 0 });
   const [selected, setSelected] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<"minsa" | "simple" | null>(null);
   const [mode, setMode] = useState<"list" | "minsa">("list");
   const [sections, setSections] = useState<string[] | null>(null);
   const [moreFilters, setMoreFilters] = useState(false);
@@ -293,9 +294,14 @@ export function Records() {
         }
         action={
           can("pregnancy.post") && (
-            <Button size="lg" onClick={() => setCreating(true)}>
-              <Plus /> Nuevo registro
-            </Button>
+            <>
+              <Button size="lg" variant="outline" onClick={() => setCreating("simple")} title="Solo los datos principales">
+                <Plus /> Registro simple
+              </Button>
+              <Button size="lg" onClick={() => setCreating("minsa")} title="Con todas las columnas de la planilla MINSA">
+                <FileSpreadsheet /> Registro formato MINSA
+              </Button>
+            </>
           )
         }
       />
@@ -352,8 +358,8 @@ export function Records() {
             </div>
           }
         />
-        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]">
-          <div className="relative">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]">
+          <div className="relative sm:col-span-2 lg:col-span-1">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Buscar registros"
@@ -364,7 +370,7 @@ export function Records() {
             />
           </div>
           <NativeSelect
-            className="w-full md:w-48"
+            className="w-full lg:w-48"
             aria-label="Filtrar por sede"
             value={filters.health_facility_id ?? ""}
             onChange={(e) => update({ health_facility_id: e.target.value || undefined })}
@@ -377,7 +383,7 @@ export function Records() {
             ))}
           </NativeSelect>
           <NativeSelect
-            className="w-full md:w-44"
+            className="w-full lg:w-44"
             aria-label="Filtrar por estado"
             value={filters.status ?? ""}
             onChange={(e) => update({ status: (e.target.value || undefined) as PregnancyStatus | undefined })}
@@ -390,7 +396,7 @@ export function Records() {
             ))}
           </NativeSelect>
           <NativeSelect
-            className="w-full md:w-40"
+            className="w-full lg:w-40"
             aria-label="Filtrar por riesgo"
             value={filters.risk_level ?? ""}
             onChange={(e) => update({ risk_level: (e.target.value || undefined) as PregnancyFilters["risk_level"] })}
@@ -403,7 +409,7 @@ export function Records() {
             ))}
           </NativeSelect>
           <NativeSelect
-            className="w-full md:w-40"
+            className="w-full lg:w-40"
             aria-label="Filtrar por marca de color"
             value={filters.mark === "any" || filters.mark === "none" || !filters.mark ? (filters.mark ?? "") : "color"}
             onChange={(e) => update({ mark: e.target.value || undefined })}
@@ -592,12 +598,23 @@ export function Records() {
           </>
         ) : null}
       </Panel>
-      {creating && (
+      {creating === "minsa" && (
+        <MinsaRecordForm
+          facilities={facilities}
+          onClose={() => setCreating(null)}
+          onSaved={(id) => {
+            setCreating(null);
+            reload();
+            setSelected(id);
+          }}
+        />
+      )}
+      {creating === "simple" && (
         <RecordForm
           facilities={facilities}
-          onClose={() => setCreating(false)}
+          onClose={() => setCreating(null)}
           onSaved={(saved) => {
-            setCreating(false);
+            setCreating(null);
             reload();
             setSelected(saved.id);
           }}

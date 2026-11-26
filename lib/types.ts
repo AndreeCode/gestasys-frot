@@ -8,6 +8,7 @@ export type Section =
   | "Usuarios"
   | "Roles y permisos"
   | "Auditoría"
+  | "Formato MINSA"
   | "Backups"
   | "Configuración";
 
@@ -22,6 +23,7 @@ export const SECTION_PERMISSION: Record<Section, string | null> = {
   Usuarios: "user.get",
   "Roles y permisos": "role.get",
   Auditoría: "audit_log.get",
+  "Formato MINSA": "minsa_template.put",
   Backups: "backup.get",
   Configuración: null,
 };
